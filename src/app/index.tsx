@@ -16,6 +16,7 @@ import { severityStyle } from '@/components/Advisories';
 import { ErrorState, StaleNote } from '@/components/ErrorState';
 import { GateBadge } from '@/components/GateBadge';
 import { LiveStatus, toneColors } from '@/components/LiveStatus';
+import { MyAlarms } from '@/components/MyAlarms';
 import { statusKey, summarize, useTripStatuses, type LiveSummary } from '@/live';
 import { RoutePlanner } from '@/components/RoutePlanner';
 import type { SavedRoute, Stop, Trip } from '@/types';
@@ -80,6 +81,12 @@ export default function Home() {
         {!!routes?.length && (
           <Animated.View entering={CALM}>
             <PlannerTeaser />
+          </Animated.View>
+        )}
+
+        {Platform.OS === 'ios' && !!routes?.length && (
+          <Animated.View entering={CALM}>
+            <MyAlarms />
           </Animated.View>
         )}
 

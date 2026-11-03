@@ -179,7 +179,8 @@ function WakeButton({ trip, live }: { trip: Trip; live: LiveSummary | null }) {
     // Prefer the live estimated arrival so a late bus doesn't ring the backup too early.
     const arrival = live?.arrival ?? trip.arrival;
     const backupAt = backupMin ? new Date(new Date(arrival).getTime() - backupMin * 60000) : undefined;
-    await arm({ id: trip.id, name: stop.name, latitude: stop.latitude, longitude: stop.longitude }, radiusM, backupAt);
+    const path = trip.stops.map(({ latitude, longitude }) => ({ latitude, longitude }));
+    await arm({ id: trip.id, name: stop.name, latitude: stop.latitude, longitude: stop.longitude, path }, radiusM, backupAt);
     router.push('/alarm');
   }
   return (

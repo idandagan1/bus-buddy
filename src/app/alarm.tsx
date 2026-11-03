@@ -4,6 +4,7 @@ import { router, Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { Moon, NightSky } from '@/components/NightSky';
+import { RouteSketch } from '@/components/RouteSketch';
 import { useEffect, useState } from 'react';
 import { Alert, FlatList, Pressable, SafeAreaView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { arm, disarm, requestPermissions, subscribe } from '@/alarm';
@@ -19,7 +20,7 @@ export default function AlarmScreen() {
   const [trip, setTrip] = useState<ArmedTrip | null>(null);
   const [radius, setRadius] = useState(1000);
   const [query, setQuery] = useState('');
-  const [distance, setDistance] = useState<number | null>(null);
+  const [here, setHere] = useState<{ latitude: number; longitude: number } | null>(null);
 
   useEffect(() => {
     loadDestinations().then(setDestinations);
@@ -34,7 +35,7 @@ export default function AlarmScreen() {
     if (!trip) return;
     let sub: Location.LocationSubscription | undefined;
     Location.watchPositionAsync({ accuracy: Location.Accuracy.Balanced, distanceInterval: 50 }, (loc) =>
-      setDistance(distanceMeters(loc.coords, trip)),
+      setHere(loc.coords),
     ).then((s) => (sub = s));
     return () => sub?.remove();
   }, [trip]);
@@ -82,6 +83,8 @@ export default function AlarmScreen() {
     ]);
   }
 
+  const distance = trip && here ? distanceMeters(here, trip) : null;
+
   if (trip?.fired) {
     return (
       <LinearGradient colors={['#f97316', '#e11d48']} style={styles.fill}>
@@ -107,13 +110,14 @@ export default function AlarmScreen() {
           <SafeAreaView style={styles.armed}>
             <StatusBar style="light" />
             <Text style={styles.nightBack} onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}>‹ Back</Text>
-            <Moon />
+            <Moon size={trip.path && trip.path.length > 1 ? 100 : 140} />
             <Animated.Text entering={FadeIn.delay(200).duration(800)} style={styles.sleepWell}>Sleep well</Animated.Text>
             <Animated.View entering={FadeIn.delay(400).duration(800)} style={{ alignItems: 'center', gap: 4 }}>
               <Text style={styles.nightLabel}>We’ll wake you before</Text>
               <Text style={styles.nightName}>{trip.name}</Text>
             </Animated.View>
             <Animated.View entering={FadeIn.delay(600).duration(800)} style={styles.nightCard}>
+              {trip.path && trip.path.length > 1 && <RouteSketch path={trip.path} me={here} />}
               {distance != null && <Text style={styles.nightBig}>{formatDistance(distance)} away</Text>}
               <Text style={styles.nightInfo}>Rings when the bus is {formatDistance(trip.radius)} from your stop</Text>
               {trip.backupAt && (

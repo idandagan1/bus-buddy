@@ -5,6 +5,8 @@ export type Destination = {
   name: string;
   latitude: number;
   longitude: number;
+  // The trip's stops in order, for the route sketch on the sleep screen.
+  path?: { latitude: number; longitude: number }[];
 };
 
 export type ArmedTrip = Destination & { radius: number; fired: boolean; backupAt?: number };
