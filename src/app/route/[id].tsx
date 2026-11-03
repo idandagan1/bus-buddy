@@ -183,7 +183,12 @@ function WakeButton({ trip, live }: { trip: Trip; live: LiveSummary | null }) {
   return (
     <PressableScale onPress={wake} style={styles.wake}>
       <LinearGradient colors={gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.wakeInner}>
-        <Text style={styles.wakeText}>⏰  Wake me before {stop.name}</Text>
+        <Text style={styles.wakeIcon}>⏰</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.wakeText}>Wake me up</Text>
+          <Text style={styles.wakeSub} numberOfLines={1}>before {stop.name}</Text>
+        </View>
+        <Text style={styles.wakeArrow}>›</Text>
       </LinearGradient>
     </PressableScale>
   );
@@ -219,8 +224,11 @@ const styles = StyleSheet.create({
   stopLine: { flex: 1, width: 2, backgroundColor: colors.border },
   stopName: { flex: 1, color: colors.text, fontSize: 14 },
   stopEdge: { fontWeight: '700', color: colors.text },
-  wake: { marginTop: 14 },
-  wakeInner: { borderRadius: 14, paddingVertical: 14, alignItems: 'center' },
-  wakeText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  wake: { marginTop: 16, marginBottom: 4 },
+  wakeInner: { borderRadius: 14, paddingVertical: 12, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  wakeIcon: { fontSize: 22 },
+  wakeText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  wakeSub: { color: 'rgba(255,255,255,0.8)', fontSize: 13, marginTop: 1 },
+  wakeArrow: { color: '#fff', fontSize: 24, fontWeight: '600' },
   footnote: { color: colors.muted, fontSize: 12, textAlign: 'center', marginTop: 8 },
 });
