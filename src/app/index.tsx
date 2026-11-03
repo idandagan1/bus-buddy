@@ -13,6 +13,8 @@ import Animated, {
 } from 'react-native-reanimated';
 import { formatCountdown, formatTime, loadRoutes, saveRoutes, useAdvisories, useNow, useTrips } from '@/api';
 import { severityStyle } from '@/components/Advisories';
+import { ErrorState, StaleNote } from '@/components/ErrorState';
+import { GateBadge } from '@/components/GateBadge';
 import { LiveStatus, toneColors } from '@/components/LiveStatus';
 import { statusKey, summarize, useTripStatuses, type LiveSummary } from '@/live';
 import { RoutePlanner } from '@/components/RoutePlanner';
@@ -146,7 +148,7 @@ function NextBusHero({ route }: { route: SavedRoute }) {
         <Text style={styles.countdown}>{hh > 0 ? `${hh}:${mm}:${ss}` : `${mm}:${ss}`}</Text>
         <View style={{ alignItems: 'flex-end' }}>
           <Text style={styles.glassTime}>{formatTime(departure)}</Text>
-          <Text style={styles.glassSub}>arrives {formatTime(live?.arrival ?? next.arrival)}</Text>
+          <Text style={styles.glassSub}>{next.gate ? `Gate ${next.gate} · ` : ''}arrives {formatTime(live?.arrival ?? next.arrival)}</Text>
         </View>
       </View>
     </Animated.View>
@@ -176,7 +178,7 @@ function RouteCard({ route, onRemove }: { route: SavedRoute; onRemove: () => voi
   const [reversed, setReversed] = useState(false);
   const from = reversed ? route.to : route.from;
   const to = reversed ? route.from : route.to;
-  const { trips, error } = useTrips(from, to);
+  const { trips, error, offline, cachedAt, reload } = useTrips(from, to);
   const alerts = useAdvisories(trips).filter((a) => a.severity === 'high');
   const now = useNow();
   const statuses = useTripStatuses(trips, now);
@@ -211,7 +213,8 @@ function RouteCard({ route, onRemove }: { route: SavedRoute; onRemove: () => voi
         </Animated.View>
       ))}
 
-      {error && !trips && <Text style={styles.error}>{error}</Text>}
+      {error && !trips && <ErrorState compact offline={offline} message={error} onRetry={reload} />}
+      {trips && (cachedAt || offline) && <StaleNote cachedAt={cachedAt} offline={offline} />}
       {!trips && !error && (
         <View style={{ gap: 8 }}>
           <Skeleton height={52} />
@@ -274,6 +277,7 @@ function NextTrip({ trip, now, live }: { trip: Trip; now: number; live: LiveSumm
         <PulseDot color={colors.primary} size={8} />
         <Text style={styles.nextTime}>{formatTime(departure)}</Text>
         <Text style={styles.muted}>→ {formatTime(live?.arrival ?? trip.arrival)} · {trip.route}</Text>
+        {trip.gate && <GateBadge gate={trip.gate} />}
         <Text style={styles.nextCountdown}>{formatCountdown(departure, now)}</Text>
       </View>
       {live && <LiveStatus summary={live} compact />}

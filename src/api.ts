@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useOnline } from '@/network';
 import type { Advisory, SavedRoute, Stop, Trip } from '@/types';
 
 const TZ = 'America/New_York';
@@ -23,56 +24,102 @@ export function formatCountdown(iso: string, now: number) {
   return `in ${h}h ${mins % 60}m`;
 }
 
-export async function searchStops(q: string, origin?: string): Promise<Stop[]> {
-  const qs = new URLSearchParams({ q });
-  if (origin) qs.set('origin', origin);
-  const res = await fetch(`/api/stops?${qs}`);
-  if (!res.ok) throw new Error('Could not load stops');
+// Thrown when the request never reached the server (no connection), as opposed to a server error.
+export class OfflineError extends Error {
+  constructor() {
+    super('No internet connection');
+  }
+}
+
+async function getJson<T>(url: string, failure: string): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(url);
+  } catch {
+    throw new OfflineError();
+  }
+  if (!res.ok) throw new Error(failure);
   return res.json();
 }
 
+export function searchStops(q: string, origin?: string): Promise<Stop[]> {
+  const qs = new URLSearchParams({ q });
+  if (origin) qs.set('origin', origin);
+  return getJson(`/api/stops?${qs}`, "Couldn't load stops from Coach USA");
+}
+
 const tripsCacheKey = (from: string, to: string) => `trips:${from}:${to}`;
+type CachedTrips = { savedAt: number; trips: Trip[] };
 
 export async function fetchTrips(from: string, to: string): Promise<Trip[]> {
-  const res = await fetch(`/api/trips?${new URLSearchParams({ from, to, date: todayISO() })}`);
-  if (!res.ok) throw new Error('Could not load schedule');
-  const trips: Trip[] = await res.json();
-  AsyncStorage.setItem(tripsCacheKey(from, to), JSON.stringify(trips)).catch(() => {});
+  const trips = await getJson<Trip[]>(
+    `/api/trips?${new URLSearchParams({ from, to, date: todayISO() })}`,
+    "Couldn't load the schedule from Coach USA",
+  );
+  const cached: CachedTrips = { savedAt: Date.now(), trips };
+  AsyncStorage.setItem(tripsCacheKey(from, to), JSON.stringify(cached)).catch(() => {});
   return trips;
+}
+
+async function readCachedTrips(key: string): Promise<CachedTrips | null> {
+  const raw = await AsyncStorage.getItem(key).catch(() => null);
+  if (!raw) return null;
+  const parsed = JSON.parse(raw);
+  return Array.isArray(parsed) ? { savedAt: 0, trips: parsed } : parsed; // older builds cached a bare array
 }
 
 const REFRESH_MS = 5 * 60 * 1000;
 
-// Cached schedule first, then fresh data; refetches every few minutes while mounted.
+type TripsState = {
+  key: string;
+  trips: Trip[] | null;
+  error: string | null;
+  offline: boolean;
+  // Set while showing a saved copy because no fresh data has arrived yet.
+  cachedAt: number | null;
+};
+
+// Cached schedule first, then fresh data; refetches every few minutes and when the connection returns.
 export function useTrips(from: Stop, to: Stop) {
   const key = tripsCacheKey(from.id, to.id);
+  const online = useOnline();
   // Tagged with the key so switching direction never shows the other direction's trips.
-  const [state, setState] = useState<{ key: string; trips: Trip[] | null; error: string | null }>({
-    key,
-    trips: null,
-    error: null,
-  });
+  const [state, setState] = useState<TripsState>({ key, trips: null, error: null, offline: false, cachedAt: null });
 
   const load = useCallback(async () => {
     try {
       const trips = await fetchTrips(from.id, to.id);
-      setState({ key, trips, error: null });
+      setState({ key, trips, error: null, offline: false, cachedAt: null });
     } catch (e) {
-      setState((s) => ({ key, trips: s.key === key ? s.trips : null, error: (e as Error).message }));
+      setState((s) => ({
+        ...(s.key === key ? s : { trips: null, cachedAt: null }),
+        key,
+        error: (e as Error).message,
+        offline: e instanceof OfflineError,
+      }));
     }
   }, [from.id, to.id, key]);
 
   useEffect(() => {
-    AsyncStorage.getItem(key)
-      .then((raw) => raw && setState((s) => (s.key === key && s.trips ? s : { key, trips: JSON.parse(raw), error: null })))
-      .catch(() => {});
+    readCachedTrips(key).then(
+      (cached) =>
+        cached &&
+        setState((s) => (s.key === key && s.trips ? s : { key, trips: cached.trips, error: null, offline: false, cachedAt: cached.savedAt || null })),
+    );
     load();
     const timer = setInterval(load, REFRESH_MS);
     return () => clearInterval(timer);
   }, [key, load]);
 
-  const current = state.key === key ? state : { trips: null, error: null };
-  return { trips: current.trips, error: current.error, reload: load };
+  // Refetch the moment the connection comes back.
+  const wasOnline = useRef(online);
+  useEffect(() => {
+    if (online && wasOnline.current === false) load();
+    wasOnline.current = online;
+  }, [online, load]);
+
+  const current = state.key === key ? state : { trips: null, error: null, offline: false, cachedAt: null };
+  return { ...current, offline: current.offline || online === false, reload: load };
 }
 
 export function useNow(intervalMs = 30000) {

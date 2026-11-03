@@ -1,5 +1,9 @@
 import * as Location from 'expo-location';
+import { LinearGradient } from 'expo-linear-gradient';
+import { router, Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import Animated, { FadeIn } from 'react-native-reanimated';
+import { Moon, NightSky } from '@/components/NightSky';
 import { useEffect, useState } from 'react';
 import { Alert, FlatList, Pressable, SafeAreaView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { arm, disarm, requestPermissions, subscribe } from '@/alarm';
@@ -78,24 +82,51 @@ export default function AlarmScreen() {
     ]);
   }
 
+  if (trip?.fired) {
+    return (
+      <LinearGradient colors={['#f97316', '#e11d48']} style={styles.fill}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <SafeAreaView style={styles.armed}>
+          <StatusBar style="light" />
+          <Text style={styles.firedEmoji}>⏰</Text>
+          <Text style={styles.nightLabel}>You’re almost there!</Text>
+          <Text style={styles.nightName}>{trip.name}</Text>
+          <Pressable style={styles.stopButton} onPress={disarm}>
+            <Text style={styles.stopText}>STOP ALARM</Text>
+          </Pressable>
+        </SafeAreaView>
+      </LinearGradient>
+    );
+  }
+
   if (trip) {
     return (
-      <SafeAreaView style={[styles.container, trip.fired && styles.firedBg]}>
-        <StatusBar style={trip.fired ? 'light' : 'dark'} />
-        <View style={styles.armed}>
-          <Text style={[styles.armedLabel, trip.fired && styles.light]}>{trip.fired ? 'You’re almost there!' : 'Sleep well — alarm set for'}</Text>
-          <Text style={[styles.armedName, trip.fired && styles.light]}>{trip.name}</Text>
-          {!trip.fired && (
-            <Text style={styles.muted}>
-              Rings {formatDistance(trip.radius)} before{distance != null ? ` · ${formatDistance(distance)} away` : ''}
-            </Text>
-          )}
-          <Pressable style={[styles.bigButton, trip.fired && styles.stopButton]} onPress={disarm}>
-            <Text style={[styles.bigButtonText, trip.fired && styles.stopText]}>{trip.fired ? 'STOP ALARM' : 'Cancel alarm'}</Text>
-          </Pressable>
-          {!trip.fired && <Text style={styles.hint}>It rings like a regular iPhone alarm, even on silent. A backup alarm is also set 5 min before the scheduled arrival.</Text>}
-        </View>
-      </SafeAreaView>
+      <View style={styles.fill}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <NightSky>
+          <SafeAreaView style={styles.armed}>
+            <StatusBar style="light" />
+            <Text style={styles.nightBack} onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}>‹ Back</Text>
+            <Moon />
+            <Animated.Text entering={FadeIn.delay(200).duration(800)} style={styles.sleepWell}>Sleep well</Animated.Text>
+            <Animated.View entering={FadeIn.delay(400).duration(800)} style={{ alignItems: 'center', gap: 4 }}>
+              <Text style={styles.nightLabel}>We’ll wake you before</Text>
+              <Text style={styles.nightName}>{trip.name}</Text>
+            </Animated.View>
+            <Animated.View entering={FadeIn.delay(600).duration(800)} style={styles.nightCard}>
+              {distance != null && <Text style={styles.nightBig}>{formatDistance(distance)} away</Text>}
+              <Text style={styles.nightInfo}>Rings when the bus is {formatDistance(trip.radius)} from your stop</Text>
+              {trip.backupAt && (
+                <Text style={styles.nightInfo}>Backup alarm at {new Date(trip.backupAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</Text>
+              )}
+            </Animated.View>
+            <Pressable style={styles.cancelButton} onPress={disarm}>
+              <Text style={styles.cancelText}>Cancel alarm</Text>
+            </Pressable>
+            <Text style={styles.nightHint}>Rings like a regular iPhone alarm, even on silent.</Text>
+          </SafeAreaView>
+        </NightSky>
+      </View>
     );
   }
 
@@ -145,7 +176,6 @@ export default function AlarmScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff', paddingHorizontal: 20 },
-  firedBg: { backgroundColor: '#c62828' },
   title: { fontSize: 32, fontWeight: '700', marginTop: 24, marginBottom: 8 },
   section: { fontSize: 13, fontWeight: '600', color: '#666', textTransform: 'uppercase', marginTop: 20, marginBottom: 8 },
   row: { flexDirection: 'row', gap: 8 },
@@ -160,12 +190,19 @@ const styles = StyleSheet.create({
   add: { paddingVertical: 16, gap: 12 },
   input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 10, padding: 12, fontSize: 16 },
   link: { color: '#1565c0', fontSize: 16 },
-  armed: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
-  armedLabel: { fontSize: 18, color: '#555' },
-  armedName: { fontSize: 34, fontWeight: '700', textAlign: 'center' },
-  bigButton: { marginTop: 32, backgroundColor: '#333', paddingVertical: 18, paddingHorizontal: 40, borderRadius: 14 },
-  stopButton: { backgroundColor: '#fff' },
-  bigButtonText: { fontSize: 20, fontWeight: '700', color: '#fff' },
-  stopText: { color: '#c62828' },
-  hint: { color: '#888', marginTop: 16, textAlign: 'center' },
+  fill: { flex: 1 },
+  armed: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 14, paddingHorizontal: 24 },
+  sleepWell: { color: '#fff', fontSize: 40, fontWeight: '800', letterSpacing: -0.8 },
+  nightLabel: { color: 'rgba(255,255,255,0.7)', fontSize: 16 },
+  nightName: { color: '#fff', fontSize: 24, fontWeight: '700', textAlign: 'center' },
+  nightCard: { marginTop: 8, alignSelf: 'stretch', maxWidth: 420, alignItems: 'center', gap: 4, padding: 16, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.08)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' },
+  nightBig: { color: '#fde68a', fontSize: 28, fontWeight: '800' },
+  nightInfo: { color: 'rgba(255,255,255,0.75)', fontSize: 14, textAlign: 'center' },
+  cancelButton: { marginTop: 12, paddingVertical: 14, paddingHorizontal: 36, borderRadius: 16, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.35)' },
+  cancelText: { color: '#fff', fontSize: 17, fontWeight: '700' },
+  nightBack: { position: 'absolute', top: 56, left: 20, color: 'rgba(255,255,255,0.75)', fontSize: 16, fontWeight: '600' },
+  nightHint: { color: 'rgba(255,255,255,0.5)', fontSize: 13, textAlign: 'center', marginTop: 4 },
+  firedEmoji: { fontSize: 72 },
+  stopButton: { marginTop: 28, backgroundColor: '#fff', paddingVertical: 20, paddingHorizontal: 48, borderRadius: 18 },
+  stopText: { fontSize: 22, fontWeight: '800', color: '#e11d48' },
 });

@@ -15,7 +15,7 @@ type RawStop = {
 type RawCall = {
   sequence: number;
   farezone: string | null;
-  stop: { name: string; location: RawLocation };
+  stop: { name: string; platform: string | null; location: RawLocation };
   arrival: { time: string; approximate: boolean } | null;
   departure: { time: string; approximate: boolean } | null;
 };
@@ -72,6 +72,7 @@ export async function getTrips(origin: string, destination: string, date: string
       fromZone: t.origin.farezone,
       toZone: t.destination.farezone,
       headsign: t.trip.headsign,
+      gate: t.origin.stop.platform || null,
       departure: callTime(t.origin),
       arrival: (t.destination.arrival ?? t.destination.departure)!.time,
       approximate: Boolean(t.origin.departure?.approximate),

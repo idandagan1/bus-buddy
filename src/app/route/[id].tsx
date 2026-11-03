@@ -7,6 +7,8 @@ import { loadSettings } from '@/settings';
 import Animated, { FadeInDown, FadeInLeft, FadeInRight, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { dayKey, formatCountdown, formatDay, formatTime, loadRoutes, useAdvisories, useNow, useTrips } from '@/api';
 import { Advisories } from '@/components/Advisories';
+import { GateBadge } from '@/components/GateBadge';
+import { ErrorState, StaleNote } from '@/components/ErrorState';
 import { LiveStatus } from '@/components/LiveStatus';
 import { statusKey, summarize, useTripStatuses, type LiveSummary } from '@/live';
 import type { SavedRoute, Stop, Trip } from '@/types';
@@ -38,7 +40,7 @@ export default function RouteScreen() {
 }
 
 function Schedule({ from, to, onSwap }: { from: Stop; to: Stop; onSwap: () => void }) {
-  const { trips, error, reload } = useTrips(from, to);
+  const { trips, error, offline, cachedAt, reload } = useTrips(from, to);
   const advisories = useAdvisories(trips);
   const now = useNow();
   const statuses = useTripStatuses(trips, now);
@@ -103,11 +105,8 @@ function Schedule({ from, to, onSwap }: { from: Stop; to: Stop; onSwap: () => vo
         </View>
       )}
 
-      {error && (
-        <PressableScale onPress={reload}>
-          <Text style={styles.error}>{error} · tap to retry</Text>
-        </PressableScale>
-      )}
+      {error && !trips && <ErrorState offline={offline} message={error} onRetry={reload} />}
+      {trips && (cachedAt || offline) && <StaleNote cachedAt={cachedAt} offline={offline} />}
       {!trips && !error && [0, 1, 2, 3, 4].map((i) => <Skeleton key={i} height={64} style={{ borderRadius: 16 }} />)}
       {trips?.length === 0 && <Text style={styles.muted}>No buses found for this route.</Text>}
 
@@ -140,7 +139,10 @@ function TripRow(props: { trip: Trip; now: number; live: LiveSummary | null; isN
         </View>
       </View>
       <View style={styles.tripMeta}>
-        <View style={{ flex: 1 }}>{live && <LiveStatus summary={live} inline />}</View>
+        <View style={styles.metaLeft}>
+          {trip.gate && <GateBadge gate={trip.gate} />}
+          {live && <LiveStatus summary={live} inline />}
+        </View>
         {!past && <Text style={[styles.countdown, isNext && styles.nextText]}>{formatCountdown(live?.departure ?? trip.departure, now)}</Text>}
         <ToggleIcon open={props.expanded} color={isNext ? colors.primary : colors.muted} />
       </View>
@@ -211,6 +213,7 @@ const styles = StyleSheet.create({
   nextText: { color: colors.primary },
   badge: { backgroundColor: colors.primarySoft, borderRadius: 8, paddingHorizontal: 7, paddingVertical: 2 },
   badgeText: { color: colors.primary, fontWeight: '700', fontSize: 12 },
+  metaLeft: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, overflow: 'hidden' },
   tripMeta: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8, minHeight: 26 },
   countdown: { color: colors.muted, fontWeight: '600' },
   muted: { color: colors.muted, fontSize: 14 },

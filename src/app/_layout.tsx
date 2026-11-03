@@ -1,8 +1,11 @@
 import { Stack } from 'expo-router';
+import { View } from 'react-native';
+import { OfflineBanner } from '@/components/OfflineBanner';
 import { colors } from '@/ui';
 
 export default function RootLayout() {
   return (
+    <View style={{ flex: 1 }}>
     <Stack
       screenOptions={{
         headerStyle: { backgroundColor: colors.card },
@@ -17,5 +20,7 @@ export default function RootLayout() {
       <Stack.Screen name="settings" options={{ title: 'Settings', headerShown: false }} />
       <Stack.Screen name="alarm" options={{ title: 'Wake-up alarm' }} />
     </Stack>
+    <OfflineBanner />
+    </View>
   );
 }

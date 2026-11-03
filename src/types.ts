@@ -20,6 +20,8 @@ export type Trip = {
   fromZone: string | null;
   toZone: string | null;
   headsign: string;
+  // Boarding gate at the departure stop (e.g. "410" at Port Authority), when the stop has one.
+  gate: string | null;
   departure: string;
   arrival: string;
   approximate: boolean;

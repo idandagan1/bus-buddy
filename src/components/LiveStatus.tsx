@@ -28,7 +28,7 @@ export function LiveStatus({ summary, compact, inline }: { summary: LiveSummary;
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 10, paddingVertical: 7, paddingHorizontal: 10, marginTop: 10 },
   compact: { marginTop: 0, paddingVertical: 5 },
-  inline: { marginTop: 0, paddingVertical: 4, alignSelf: 'flex-start', maxWidth: '100%' },
+  inline: { marginTop: 0, paddingVertical: 4, flexShrink: 1 },
   dot: { width: 7, height: 7, borderRadius: 4 },
   text: { flexShrink: 1, fontSize: 13, fontWeight: '600' },
 });

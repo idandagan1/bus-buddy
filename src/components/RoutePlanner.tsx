@@ -2,7 +2,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, TextInput, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
-import { searchStops } from '@/api';
+import { OfflineError, searchStops } from '@/api';
+import { ErrorState } from '@/components/ErrorState';
 import type { Stop } from '@/types';
 import { colors, EASE_OUT, gradient, PressableScale, shadow } from '@/ui';
 
@@ -108,7 +109,8 @@ function FieldRow(props: {
 
 function Results({ query, origin, onPick }: { query: string; origin?: string; onPick: (s: Stop) => void }) {
   const [results, setResults] = useState<Stop[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{ message: string; offline: boolean } | null>(null);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -117,12 +119,12 @@ function Results({ query, origin, onPick }: { query: string; origin?: string; on
           setResults(r);
           setError(null);
         })
-        .catch((e) => setError(e.message));
+        .catch((e) => setError({ message: e.message, offline: e instanceof OfflineError }));
     }, 250);
     return () => clearTimeout(timer);
-  }, [query, origin]);
+  }, [query, origin, attempt]);
 
-  if (error) return <Text style={styles.error}>{error}</Text>;
+  if (error) return <ErrorState compact offline={error.offline} message={error.message} onRetry={() => setAttempt((n) => n + 1)} />;
   if (!results) return <ActivityIndicator color={colors.primary} style={{ marginTop: 12 }} />;
   if (!results.length) return <Text style={styles.empty}>No stops match “{query}”.</Text>;
 
