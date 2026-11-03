@@ -1,6 +1,7 @@
 import { Stack } from 'expo-router';
 import { View } from 'react-native';
 import { OfflineBanner } from '@/components/OfflineBanner';
+import { Toast } from '@/components/Toast';
 import { colors } from '@/ui';
 
 export default function RootLayout() {
@@ -18,9 +19,11 @@ export default function RootLayout() {
       <Stack.Screen name="add" options={{ title: 'Add route', headerShown: false }} />
       <Stack.Screen name="route/[id]" options={{ title: 'Schedule', headerShown: false }} />
       <Stack.Screen name="settings" options={{ title: 'Settings', headerShown: false }} />
-      <Stack.Screen name="alarm" options={{ title: 'Wake-up alarm' }} />
+      <Stack.Screen name="map" options={{ title: 'Trip map', headerShown: false }} />
+      <Stack.Screen name="alarm" options={{ title: 'Wake-up alarm', headerShown: false }} />
     </Stack>
     <OfflineBanner />
+    <Toast />
     </View>
   );
 }

@@ -11,17 +11,7 @@ export type Destination = {
 
 export type ArmedTrip = Destination & { radius: number; fired: boolean; backupAt?: number };
 
-const DESTINATIONS_KEY = 'destinations';
 const ARMED_KEY = 'armedTrip';
-
-export async function loadDestinations(): Promise<Destination[]> {
-  const raw = await AsyncStorage.getItem(DESTINATIONS_KEY);
-  return raw ? JSON.parse(raw) : [];
-}
-
-export async function saveDestinations(list: Destination[]) {
-  await AsyncStorage.setItem(DESTINATIONS_KEY, JSON.stringify(list));
-}
 
 export async function loadArmedTrip(): Promise<ArmedTrip | null> {
   const raw = await AsyncStorage.getItem(ARMED_KEY);

@@ -3,6 +3,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
 import { disarm, subscribe } from '@/alarm';
+import { showToast } from '@/components/Toast';
 import { loadArmedTrip, type ArmedTrip } from '@/storage';
 import { colors, PressableScale, PulseDot, shadow } from '@/ui';
 
@@ -29,7 +30,14 @@ export function MyAlarms() {
     if (!trip) return;
     Alert.alert('Cancel this alarm?', trip.name, [
       { text: 'Keep', style: 'cancel' },
-      { text: 'Cancel alarm', style: 'destructive', onPress: disarm },
+      {
+        text: 'Cancel alarm',
+        style: 'destructive',
+        onPress: () => {
+          showToast(trip.fired ? 'Have a good day 👋' : 'Alarm cancelled');
+          disarm();
+        },
+      },
     ]);
   }
 

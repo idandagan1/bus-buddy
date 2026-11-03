@@ -1,9 +1,8 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Alert, Platform, StyleSheet, Text, View } from 'react-native';
-import { arm, requestPermissions } from '@/alarm';
-import { loadSettings } from '@/settings';
+import { Platform, StyleSheet, Text, View } from 'react-native';
+import { wakeBefore } from '@/wake';
 import Animated, { FadeInDown, FadeInLeft, FadeInRight, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { dayKey, formatCountdown, formatDay, formatTime, loadRoutes, useAdvisories, useNow, useTrips } from '@/api';
 import { Advisories } from '@/components/Advisories';
@@ -28,6 +27,7 @@ export default function RouteScreen() {
     <>
       {route ? (
         <Schedule
+          mapLink={{ route: route.id, reversed: isReversed ? '1' : '0' }}
           from={isReversed ? route.to : route.from}
           to={isReversed ? route.from : route.to}
           onSwap={() => router.setParams({ reversed: isReversed ? '0' : '1' })}
@@ -39,7 +39,7 @@ export default function RouteScreen() {
   );
 }
 
-function Schedule({ from, to, onSwap }: { from: Stop; to: Stop; onSwap: () => void }) {
+function Schedule({ from, to, onSwap, mapLink }: { from: Stop; to: Stop; onSwap: () => void; mapLink: MapLink }) {
   const { trips, error, offline, cachedAt, reload } = useTrips(from, to);
   const advisories = useAdvisories(trips);
   const now = useNow();
@@ -113,7 +113,7 @@ function Schedule({ from, to, onSwap }: { from: Stop; to: Stop; onSwap: () => vo
       <View key={`${from.id}:${selectedDay}`} style={{ gap: 10 }}>
         {dayTrips.map((t, i) => (
           <Animated.View key={t.id} entering={enter.delay(Math.min(i, 10) * 35).duration(420).easing(EASE_OUT)}>
-            <TripRow trip={t} now={now} live={summarize(statuses[statusKey(t)])} isNext={t.id === next?.id} expanded={expanded === t.id} onToggle={() => setExpanded(expanded === t.id ? null : t.id)} />
+            <TripRow mapLink={mapLink} trip={t} now={now} live={summarize(statuses[statusKey(t)])} isNext={t.id === next?.id} expanded={expanded === t.id} onToggle={() => setExpanded(expanded === t.id ? null : t.id)} />
           </Animated.View>
         ))}
       </View>
@@ -123,7 +123,9 @@ function Schedule({ from, to, onSwap }: { from: Stop; to: Stop; onSwap: () => vo
   );
 }
 
-function TripRow(props: { trip: Trip; now: number; live: LiveSummary | null; isNext: boolean; expanded: boolean; onToggle: () => void }) {
+type MapLink = { route: string; reversed: string };
+
+function TripRow(props: { mapLink: MapLink; trip: Trip; now: number; live: LiveSummary | null; isNext: boolean; expanded: boolean; onToggle: () => void }) {
   const { trip, now, isNext, live } = props;
   const past = new Date(trip.departure).getTime() < now;
   const minutes = Math.round((new Date(trip.arrival).getTime() - new Date(trip.departure).getTime()) / 60000);
@@ -162,6 +164,11 @@ function TripRow(props: { trip: Trip; now: number; live: LiveSummary | null; isN
               </View>
             );
           })}
+          {Platform.OS === 'ios' && (
+            <PressableScale onPress={() => router.push({ pathname: '/map', params: { ...props.mapLink, trip: trip.id } })} style={styles.mapButton}>
+              <Text style={styles.mapText}>🗺  Map · where should I get off?</Text>
+            </PressableScale>
+          )}
           {Platform.OS === 'ios' && !past && <WakeButton trip={trip} live={live} />}
         </View>
       </Collapsible>
@@ -169,22 +176,11 @@ function TripRow(props: { trip: Trip; now: number; live: LiveSummary | null; isN
   );
 }
 
-// Arms the wake-up alarm for this trip's last stop, with a time-based backup before the scheduled arrival.
+// Arms the wake-up alarm for this trip's last stop.
 function WakeButton({ trip, live }: { trip: Trip; live: LiveSummary | null }) {
   const stop = trip.stops.at(-1)!;
-  async function wake() {
-    const error = await requestPermissions();
-    if (error) return Alert.alert('Permission needed', error);
-    const { radiusM, backupMin } = await loadSettings();
-    // Prefer the live estimated arrival so a late bus doesn't ring the backup too early.
-    const arrival = live?.arrival ?? trip.arrival;
-    const backupAt = backupMin ? new Date(new Date(arrival).getTime() - backupMin * 60000) : undefined;
-    const path = trip.stops.map(({ latitude, longitude }) => ({ latitude, longitude }));
-    await arm({ id: trip.id, name: stop.name, latitude: stop.latitude, longitude: stop.longitude, path }, radiusM, backupAt);
-    router.push('/alarm');
-  }
   return (
-    <PressableScale onPress={wake} style={styles.wake}>
+    <PressableScale onPress={() => wakeBefore(trip, live)} style={styles.wake}>
       <LinearGradient colors={gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.wakeInner}>
         <Text style={styles.wakeIcon}>⏰</Text>
         <View style={{ flex: 1 }}>
@@ -228,7 +224,9 @@ const styles = StyleSheet.create({
   stopLine: { flex: 1, width: 2, backgroundColor: colors.border },
   stopName: { flex: 1, color: colors.text, fontSize: 14 },
   stopEdge: { fontWeight: '700', color: colors.text },
-  wake: { marginTop: 16, marginBottom: 4 },
+  mapButton: { marginTop: 16, borderRadius: 14, paddingVertical: 12, alignItems: 'center', backgroundColor: colors.primarySoft },
+  mapText: { color: colors.primary, fontSize: 15, fontWeight: '700' },
+  wake: { marginTop: 10, marginBottom: 4 },
   wakeInner: { borderRadius: 14, paddingVertical: 12, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 12 },
   wakeIcon: { fontSize: 22 },
   wakeText: { color: '#fff', fontWeight: '700', fontSize: 16 },
