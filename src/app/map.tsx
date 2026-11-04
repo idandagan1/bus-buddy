@@ -1,11 +1,11 @@
-import { AppleMaps } from 'expo-maps';
-import * as Location from 'expo-location';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, Platform, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StopMap } from '@/components/StopMap';
 import { formatTime, loadRoutes, useNow, useTrips } from '@/api';
+import { geocode } from '@/geocode';
 import { distanceMeters } from '@/geo';
 import { statusKey, summarize, useTripStatuses } from '@/live';
 import type { SavedRoute, Stop, Trip } from '@/types';
@@ -27,7 +27,7 @@ export default function MapScreen() {
     loadRoutes().then((routes) => setRoute(routes.find((r) => r.id === routeId) ?? null));
   }, [routeId]);
 
-  if (Platform.OS !== 'ios') return <Text style={styles.unsupported}>The map is available in the iPhone app.</Text>;
+  if (Platform.OS === 'android') return <Text style={styles.unsupported}>The map is available on iPhone and the website.</Text>;
   if (!route) return <Loading />;
   const flip = reversed === '1';
   return <TripMap from={flip ? route.to : route.from} to={flip ? route.from : route.to} tripId={tripId} />;
@@ -50,7 +50,6 @@ function TripMap({ from, to, tripId }: { from: Stop; to: Stop; tripId: string })
 
 function TripMapView({ trip }: { trip: Trip }) {
   const insets = useSafeAreaInsets();
-  const map = useRef<AppleMaps.MapView>(null);
   const now = useNow();
   const status = useTripStatuses([trip], now)[statusKey(trip)];
   const live = summarize(status);
@@ -60,6 +59,7 @@ function TripMapView({ trip }: { trip: Trip }) {
   const [selected, setSelected] = useState(last);
   const [query, setQuery] = useState('');
   const [place, setPlace] = useState<{ name: string; coords: LatLng } | null>(null);
+  const [focus, setFocus] = useState<LatLng[] | null>(null);
   const [searching, setSearching] = useState(false);
   const [notFound, setNotFound] = useState(false);
 
@@ -71,42 +71,25 @@ function TripMapView({ trip }: { trip: Trip }) {
     if (!name) return;
     setSearching(true);
     setNotFound(false);
-    const results = await Location.geocodeAsync(name).catch(() => []);
+    const coords = await geocode(name);
     setSearching(false);
-    if (!results.length) return setNotFound(true);
-    const coords = { latitude: results[0].latitude, longitude: results[0].longitude };
+    if (!coords) return setNotFound(true);
     const closest = trip.stops.reduce((best, s, i) => (distanceMeters(s, coords) < distanceMeters(trip.stops[best], coords) ? i : best), 0);
     setPlace({ name, coords });
     setSelected(closest);
-    map.current?.setCameraPosition(fit([trip.stops[closest], coords]));
+    setFocus([trip.stops[closest], coords]);
   }
-
-  const markers: AppleMaps.Marker[] = [
-    ...trip.stops.map((s, i) => ({
-      id: `stop-${i}`,
-      title: `${s.name} · ${formatTime(s.time)}`,
-      coordinates: s,
-      systemImage: i === selected ? 'bell.fill' : i === 0 ? 'figure.wave' : 'bus',
-      tintColor: i === selected ? '#f59e0b' : colors.primary,
-    })),
-    ...(place ? [{ id: 'place', title: place.name, coordinates: place.coords, systemImage: 'mappin', tintColor: colors.danger }] : []),
-    ...(bus ? [{ id: 'bus', title: `Your bus${live ? ` · ${live.text}` : ''}`, coordinates: bus, systemImage: 'bus.fill', tintColor: colors.success }] : []),
-  ];
 
   return (
     <View style={styles.fill}>
-      <AppleMaps.View
-        ref={map}
-        style={StyleSheet.absoluteFill}
-        cameraPosition={fit(trip.stops)}
-        markers={markers}
-        polylines={[{ id: 'route', coordinates: trip.stops, color: colors.primary, width: 4 }]}
-        properties={{ isMyLocationEnabled: true, pointsOfInterest: { including: [] } }}
-        uiSettings={{ myLocationButtonEnabled: true, compassEnabled: false }}
-        onMarkerClick={(m) => {
-          const i = Number(m.id?.replace('stop-', ''));
-          if (m.id?.startsWith('stop-') && Number.isInteger(i)) setSelected(i);
-        }}
+      <StopMap
+        stops={trip.stops}
+        selected={selected}
+        place={place}
+        bus={bus}
+        busTitle={`Your bus${live ? ` · ${live.text}` : ''}`}
+        focus={focus}
+        onSelectStop={setSelected}
       />
 
       <PressableScale onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))} style={[styles.back, shadow, { top: insets.top + 8 }]}>
@@ -137,7 +120,7 @@ function TripMapView({ trip }: { trip: Trip }) {
           {!place && <Text style={styles.hint}>Search a place, or tap a stop on the map.</Text>}
         </View>
 
-        {selected > 0 && new Date(trip.arrival).getTime() > now && (
+        {Platform.OS === 'ios' && selected > 0 && new Date(trip.arrival).getTime() > now && (
           <PressableScale onPress={() => wakeBefore(trip, live, selected)}>
             <LinearGradient colors={gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.wake}>
               <Text style={styles.wakeText}>⏰ Wake me before this stop</Text>
@@ -147,19 +130,6 @@ function TripMapView({ trip }: { trip: Trip }) {
       </View>
     </View>
   );
-}
-
-// Camera centred on the points, zoomed out enough to show all of them (with some margin for the sheet).
-function fit(points: LatLng[]) {
-  const lats = points.map((p) => p.latitude);
-  const lons = points.map((p) => p.longitude);
-  const [minLat, maxLat, minLon, maxLon] = [Math.min(...lats), Math.max(...lats), Math.min(...lons), Math.max(...lons)];
-  const span = Math.max(maxLat - minLat, (maxLon - minLon) * 0.75, 0.005);
-  return {
-    // Nudge the centre south so the points sit above the bottom sheet.
-    coordinates: { latitude: (minLat + maxLat) / 2 - span * 0.35, longitude: (minLon + maxLon) / 2 },
-    zoom: Math.min(16, Math.log2(360 / span) - 1.6),
-  };
 }
 
 const styles = StyleSheet.create({

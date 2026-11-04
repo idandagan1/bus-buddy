@@ -164,7 +164,7 @@ function TripRow(props: { mapLink: MapLink; trip: Trip; now: number; live: LiveS
               </View>
             );
           })}
-          {Platform.OS === 'ios' && (
+          {Platform.OS !== 'android' && (
             <PressableScale onPress={() => router.push({ pathname: '/map', params: { ...props.mapLink, trip: trip.id } })} style={styles.mapButton}>
               <Text style={styles.mapText}>🗺  Map · where should I get off?</Text>
             </PressableScale>
