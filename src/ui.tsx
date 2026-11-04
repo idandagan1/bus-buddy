@@ -37,19 +37,20 @@ export const tapFeedback = () => {
 };
 
 // Scrollable page: optional full-bleed hero, then a centered column capped for desktop.
-export function Page({ children, hero }: { children: ReactNode; hero?: ReactNode }) {
+// The first card tucks up under the hero; pass overlap={false} (to Hero too) when the page starts with a heading instead.
+export function Page({ children, hero, overlap = true }: { children: ReactNode; hero?: ReactNode; overlap?: boolean }) {
   return (
     <ScrollView style={styles.scroll} contentContainerStyle={styles.outer} keyboardShouldPersistTaps="handled">
       {hero}
-      <View style={[styles.inner, hero ? styles.overlap : null]}>{children}</View>
+      <View style={[styles.inner, hero && overlap ? styles.overlap : null]}>{children}</View>
     </ScrollView>
   );
 }
 
-export function Hero({ children }: { children: ReactNode }) {
+export function Hero({ children, overlap = true }: { children: ReactNode; overlap?: boolean }) {
   const insets = useSafeAreaInsets();
   return (
-    <LinearGradient colors={gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.hero, { paddingTop: insets.top + 20 }]}>
+    <LinearGradient colors={gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.hero, !overlap && styles.heroFlat, { paddingTop: insets.top + 20 }]}>
       <View style={styles.heroInner}>{children}</View>
     </LinearGradient>
   );
@@ -110,6 +111,7 @@ const styles = StyleSheet.create({
   inner: { width: '100%', maxWidth: 640, paddingHorizontal: 16, paddingTop: 16, gap: 14 },
   overlap: { marginTop: -44 },
   hero: { width: '100%', paddingBottom: 64, alignItems: 'center' },
+  heroFlat: { paddingBottom: 24 },
   heroInner: { width: '100%', maxWidth: 640, paddingHorizontal: 20 },
 });
 

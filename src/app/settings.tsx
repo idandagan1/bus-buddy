@@ -3,10 +3,9 @@ import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
+import { formatDistance } from '@/geo';
 import { BACKUP_OPTIONS_MIN, RADII_M, TONES, useSettings, type ToneId } from '@/settings';
 import { colors, Hero, Page, PressableScale, PulseDot, shadow } from '@/ui';
-
-const formatKm = (m: number) => (m < 1000 ? `${m} m` : `${m / 1000} km`);
 
 export default function SettingsScreen() {
   const [settings, update] = useSettings();
@@ -88,8 +87,8 @@ export default function SettingsScreen() {
       </View>
 
       <Section title="Ring when the bus is within" delay={160}>
-        <Chips options={RADII_M} value={settings?.radiusM} label={formatKm} onChange={(radiusM) => update({ radiusM })} />
-        <Text style={styles.hint}>Bigger gives you more time to wake up; smaller rings closer to your stop.</Text>
+        <Chips options={RADII_M} value={settings?.radiusM} label={formatDistance} onChange={(radiusM) => update({ radiusM })} />
+        <Text style={styles.hint}>Measured along the bus route. Bigger gives you more time to wake up; smaller rings closer to your stop. Applies to new alarms; edit a set alarm from My alarms.</Text>
       </Section>
 
       <Section title="Backup alarm" delay={240}>

@@ -9,7 +9,10 @@ export type Destination = {
   path?: { latitude: number; longitude: number }[];
 };
 
-export type ArmedTrip = Destination & { radius: number; fired: boolean; backupAt?: number };
+// dueAt: when the bus is due at the stop (live delay included), so the backup can be moved later.
+export type ArmedTrip = Destination & { radius: number; fired: boolean; dueAt?: number; backupMin?: number; backupAt?: number };
+
+export type AlarmOptions = { radius: number; backupMin: number };
 
 const ARMED_KEY = 'armedTrip';
 

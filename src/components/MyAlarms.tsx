@@ -3,16 +3,18 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
 import { disarm, subscribe } from '@/alarm';
+import { AlarmEditor } from '@/components/AlarmEditor';
 import { showToast } from '@/components/Toast';
+import { formatDistance } from '@/geo';
 import { loadArmedTrip, type ArmedTrip } from '@/storage';
 import { colors, PressableScale, PulseDot, shadow } from '@/ui';
 
-const formatDistance = (m: number) => (m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(1)} km`);
 const formatClock = (ms: number) => new Date(ms).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 
 // Dashboard section for the wake-up alarm (iPhone only): the armed trip, or a hint on how to set one.
 export function MyAlarms() {
   const [trip, setTrip] = useState<ArmedTrip | null>(null);
+  const [editing, setEditing] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -53,8 +55,8 @@ export function MyAlarms() {
       </View>
 
       {trip ? (
-        <PressableScale onPress={() => router.push('/alarm')} style={shadow}>
-          <LinearGradient colors={['#13184a', '#2a1b5c']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.card}>
+        <LinearGradient colors={['#13184a', '#2a1b5c']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.card, shadow]}>
+          <PressableScale onPress={() => router.push('/alarm')}>
             <View style={styles.row}>
               <Text style={styles.icon}>{trip.fired ? '⏰' : '🌙'}</Text>
               <View style={{ flex: 1, gap: 2 }}>
@@ -69,13 +71,24 @@ export function MyAlarms() {
               </View>
               <Text style={styles.arrow}>›</Text>
             </View>
+          </PressableScale>
+          {editing && !trip.fired ? (
+            <View style={styles.editor}>
+              <AlarmEditor trip={trip} onDone={() => setEditing(false)} />
+            </View>
+          ) : (
             <View style={styles.actions}>
+              {!trip.fired && (
+                <PressableScale onPress={() => setEditing(true)} style={styles.cancel}>
+                  <Text style={styles.cancelText}>Edit</Text>
+                </PressableScale>
+              )}
               <PressableScale onPress={cancel} style={styles.cancel}>
                 <Text style={styles.cancelText}>{trip.fired ? 'Stop alarm' : 'Cancel'}</Text>
               </PressableScale>
             </View>
-          </LinearGradient>
-        </PressableScale>
+          )}
+        </LinearGradient>
       ) : (
         <View style={styles.empty}>
           <Text style={styles.emptyText}>No alarm set. Open a route, tap a trip and choose “Wake me up”.</Text>
@@ -97,7 +110,8 @@ const styles = StyleSheet.create({
   name: { color: '#fff', fontSize: 17, fontWeight: '700' },
   info: { color: 'rgba(255,255,255,0.7)', fontSize: 13 },
   arrow: { color: 'rgba(255,255,255,0.6)', fontSize: 26, fontWeight: '300' },
-  actions: { flexDirection: 'row', justifyContent: 'flex-end', borderTopWidth: 1, borderColor: 'rgba(255,255,255,0.12)', paddingTop: 12 },
+  editor: { borderTopWidth: 1, borderColor: 'rgba(255,255,255,0.12)', paddingTop: 12 },
+  actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8, borderTopWidth: 1, borderColor: 'rgba(255,255,255,0.12)', paddingTop: 12 },
   cancel: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.1)' },
   cancelText: { color: '#fff', fontSize: 14, fontWeight: '600' },
   empty: { borderRadius: 16, borderWidth: 1, borderStyle: 'dashed', borderColor: colors.border, padding: 14 },

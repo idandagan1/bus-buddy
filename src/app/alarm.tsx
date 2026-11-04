@@ -9,10 +9,9 @@ import { disarm, subscribe } from '@/alarm';
 import { Moon, NightSky } from '@/components/NightSky';
 import { RouteSketch } from '@/components/RouteSketch';
 import { showToast } from '@/components/Toast';
-import { distanceMeters } from '@/geo';
+import { AlarmEditor } from '@/components/AlarmEditor';
+import { distanceToStop, formatDistance } from '@/geo';
 import { loadArmedTrip, type ArmedTrip } from '@/storage';
-
-const formatDistance = (m: number) => (m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(1)} km`);
 
 const leave = () => (router.canGoBack() ? router.back() : router.replace('/'));
 
@@ -21,6 +20,7 @@ export default function AlarmScreen() {
   // undefined while loading, null when no alarm is set.
   const [trip, setTrip] = useState<ArmedTrip | null | undefined>(undefined);
   const [here, setHere] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [editing, setEditing] = useState(false);
 
   useEffect(() => {
     loadArmedTrip().then(setTrip);
@@ -42,7 +42,7 @@ export default function AlarmScreen() {
     return () => sub?.remove();
   }, [trip]);
 
-  const distance = trip && here ? distanceMeters(here, trip) : null;
+  const distance = trip && here ? distanceToStop(here, trip) : null;
 
   function cancel() {
     showToast(trip?.fired ? 'Have a good day 👋' : 'Alarm cancelled');
@@ -85,9 +85,16 @@ export default function AlarmScreen() {
           <Animated.View entering={FadeIn.delay(600).duration(800)} style={styles.nightCard}>
             {hasPath && <RouteSketch path={trip.path!} me={here} />}
             {distance != null && <Text style={styles.nightBig}>{formatDistance(distance)} away</Text>}
-            <Text style={styles.nightInfo}>Rings when the bus is {formatDistance(trip.radius)} from your stop</Text>
-            {trip.backupAt && (
-              <Text style={styles.nightInfo}>Backup alarm at {new Date(trip.backupAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</Text>
+            {editing ? (
+              <AlarmEditor trip={trip} onDone={() => setEditing(false)} />
+            ) : (
+              <>
+                <Text style={styles.nightInfo}>Rings when the bus is {formatDistance(trip.radius)} from your stop</Text>
+                {trip.backupAt && (
+                  <Text style={styles.nightInfo}>Backup alarm at {new Date(trip.backupAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</Text>
+                )}
+                <Text style={styles.nightEdit} onPress={() => setEditing(true)}>Change</Text>
+              </>
             )}
           </Animated.View>
           <Pressable style={styles.cancelButton} onPress={cancel}>
@@ -111,6 +118,7 @@ const styles = StyleSheet.create({
   nightInfo: { color: 'rgba(255,255,255,0.75)', fontSize: 14, textAlign: 'center' },
   cancelButton: { marginTop: 12, paddingVertical: 14, paddingHorizontal: 36, borderRadius: 16, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.35)' },
   cancelText: { color: '#fff', fontSize: 17, fontWeight: '700' },
+  nightEdit: { color: '#a5b4fc', fontSize: 15, fontWeight: '700', marginTop: 6, paddingVertical: 4, paddingHorizontal: 12 },
   nightBack: { position: 'absolute', top: 56, left: 20, color: 'rgba(255,255,255,0.75)', fontSize: 16, fontWeight: '600' },
   nightHint: { color: 'rgba(255,255,255,0.5)', fontSize: 13, textAlign: 'center', marginTop: 4 },
   firedEmoji: { fontSize: 72 },

@@ -56,8 +56,9 @@ export default function Home() {
   return (
     <>
       <Page
+        overlap={!routes?.length}
         hero={
-          <Hero>
+          <Hero overlap={!routes?.length}>
             <View style={styles.heroTop}>
               <Animated.Text style={styles.greeting}>{greeting} 👋</Animated.Text>
               <PressableScale onPress={() => router.push('/settings')} hitSlop={10} style={styles.gear}>
@@ -78,12 +79,6 @@ export default function Home() {
           </Animated.View>
         )}
 
-        {!!routes?.length && (
-          <Animated.View entering={CALM}>
-            <PlannerTeaser />
-          </Animated.View>
-        )}
-
         {Platform.OS === 'ios' && !!routes?.length && (
           <Animated.View entering={CALM}>
             <MyAlarms />
@@ -96,7 +91,11 @@ export default function Home() {
             <View style={styles.countPill}>
               <Text style={styles.countText}>{routes.length}</Text>
             </View>
-            <Text style={styles.sectionHint}>Saved on this device</Text>
+            <PressableScale onPress={() => router.push('/add')} hitSlop={6} style={styles.addButton}>
+              <LinearGradient colors={gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.addGradient}>
+                <Text style={styles.addText}>＋ Add route</Text>
+              </LinearGradient>
+            </PressableScale>
           </Animated.View>
         )}
 
@@ -159,25 +158,6 @@ function NextBusHero({ route }: { route: SavedRoute }) {
         </View>
       </View>
     </Animated.View>
-  );
-}
-
-function PlannerTeaser() {
-  return (
-    <PressableScale onPress={() => router.push('/add')} style={[styles.teaser, shadow]}>
-      <View style={styles.teaserRail}>
-        <View style={[styles.dot, { backgroundColor: colors.primary }]} />
-        <View style={styles.teaserLine} />
-        <View style={[styles.dot, { backgroundColor: colors.accent, borderRadius: 3 }]} />
-      </View>
-      <View style={{ flex: 1, gap: 18 }}>
-        <Text style={styles.teaserText}>From</Text>
-        <Text style={styles.teaserText}>To</Text>
-      </View>
-      <LinearGradient colors={gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.teaserPlus}>
-        <Text style={styles.teaserPlusText}>＋</Text>
-      </LinearGradient>
-    </PressableScale>
   );
 }
 
@@ -322,13 +302,6 @@ const styles = StyleSheet.create({
   delayText: { fontSize: 12, fontWeight: '700' },
   glassSub: { color: 'rgba(255,255,255,0.7)', fontSize: 13 },
   hint: { color: colors.muted, textAlign: 'center', marginTop: 14, fontSize: 14 },
-  teaser: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: colors.card, borderRadius: 20, padding: 18 },
-  teaserRail: { alignItems: 'center', height: 54 },
-  teaserLine: { flex: 1, width: 2, backgroundColor: colors.border, marginVertical: 3 },
-  dot: { width: 10, height: 10, borderRadius: 5 },
-  teaserText: { fontSize: 16, color: colors.muted },
-  teaserPlus: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
-  teaserPlusText: { color: '#fff', fontSize: 22, fontWeight: '700' },
   card: { backgroundColor: colors.card, borderRadius: 20, padding: 16, gap: 12 },
   cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   cardFrom: { fontSize: 17, fontWeight: '700', color: colors.text },
@@ -356,5 +329,7 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 20, fontWeight: '800', color: colors.text, letterSpacing: -0.3 },
   countPill: { backgroundColor: colors.primarySoft, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2 },
   countText: { color: colors.primary, fontWeight: '700', fontSize: 13 },
-  sectionHint: { marginLeft: 'auto', color: colors.muted, fontSize: 12 },
+  addButton: { marginLeft: 'auto' },
+  addGradient: { borderRadius: 16, paddingVertical: 7, paddingHorizontal: 14 },
+  addText: { color: '#fff', fontSize: 14, fontWeight: '700' },
 });

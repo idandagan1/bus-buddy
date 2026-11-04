@@ -12,5 +12,5 @@ export async function GET(request: Request) {
       return [key, await getStatus(journeyId, date).catch(() => null)];
     }),
   );
-  return Response.json(Object.fromEntries(entries), { headers: { 'Cache-Control': 'public, max-age=30' } });
+  return Response.json(Object.fromEntries(entries), { headers: { 'Cache-Control': 'public, max-age=10' } });
 }

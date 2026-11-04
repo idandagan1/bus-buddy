@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
+import { AppState } from 'react-native';
 import type { LiveTime, Trip, TripStatus } from '@/types';
 
-const POLL_MS = 30 * 1000;
+// Coach USA refreshes live data about once a minute, so polling faster than this buys nothing.
+const POLL_MS = 15 * 1000;
 // Live status only exists around the trip itself.
 const WINDOW_BEFORE_MS = 90 * 60 * 1000;
 const WINDOW_AFTER_MS = 3 * 60 * 60 * 1000;
@@ -30,9 +32,12 @@ export function useTripStatuses(trips: Trip[] | null | undefined, now: number) {
         .catch(() => {});
     load();
     const timer = setInterval(load, POLL_MS);
+    // Timers pause in the background; catch up as soon as the app (or browser tab) is back.
+    const sub = AppState.addEventListener('change', (state) => state === 'active' && load());
     return () => {
       cancelled = true;
       clearInterval(timer);
+      sub.remove();
     };
   }, [query]);
 

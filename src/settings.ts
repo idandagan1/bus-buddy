@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect, useState } from 'react';
+import { milesToMeters } from './geo';
 
 export type ToneId = 'default' | 'beacon' | 'rise' | 'marimba' | 'pulse' | 'bells';
 
@@ -12,17 +13,20 @@ export const TONES: { id: ToneId; name: string; description: string; file: strin
   { id: 'pulse', name: 'Pulse', description: 'Urgent digital triple beep', file: 'pulse.wav', source: require('../assets/sounds/pulse.wav') },
 ];
 
-export const RADII_M = [500, 1000, 1500, 2000, 3000];
+// Measured along the route through the trip's stops (see distanceAlongPath).
+export const RADII_M = [0.5, 1, 1.5, 2].map(milesToMeters);
 export const BACKUP_OPTIONS_MIN = [0, 5, 10, 15];
 
 export type Settings = { tone: ToneId; radiusM: number; backupMin: number; vibrateOnly: boolean };
 
-const DEFAULTS: Settings = { tone: 'rise', radiusM: 1500, backupMin: 5, vibrateOnly: false };
+const DEFAULTS: Settings = { tone: 'rise', radiusM: milesToMeters(1), backupMin: 5, vibrateOnly: false };
 const KEY = 'settings';
 
 export async function loadSettings(): Promise<Settings> {
   const raw = await AsyncStorage.getItem(KEY).catch(() => null);
-  return { ...DEFAULTS, ...(raw ? JSON.parse(raw) : {}) };
+  const settings: Settings = { ...DEFAULTS, ...(raw ? JSON.parse(raw) : {}) };
+  // Older versions offered distances in km; those fall back to the default.
+  return RADII_M.includes(settings.radiusM) ? settings : { ...settings, radiusM: DEFAULTS.radiusM };
 }
 
 export async function saveSettings(settings: Settings) {
