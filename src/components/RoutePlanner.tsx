@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, TextInput, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { OfflineError, searchStops } from '@/api';
+import { CarrierTag } from '@/components/CarrierTag';
 import { ErrorState } from '@/components/ErrorState';
 import type { Stop } from '@/types';
 import { colors, EASE_OUT, gradient, PressableScale, shadow } from '@/ui';
@@ -141,7 +142,10 @@ function Results({ query, origin, onPick }: { query: string; origin?: string; on
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.resultName}>{s.name}</Text>
-              <Text style={styles.stopTown}>{stopPlace(s)}</Text>
+              {s.carrier !== 'NJT' && <Text style={styles.stopTown}>{stopPlace(s)}</Text>}
+            </View>
+            <View>
+              <CarrierTag stop={s} />
             </View>
           </PressableScale>
         </Animated.View>
