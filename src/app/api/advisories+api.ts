@@ -1,6 +1,6 @@
-import { getAdvisories } from '@/server/coachusa';
+import { getAdvisories } from '@/server/transit';
 
-// GET /api/advisories?carrier=RCK&fromZone=TNFL&toZone=NYCP — active Coach USA service alerts for a trip.
+// GET /api/advisories?carrier=RCK&fromZone=TNFL&toZone=NYCP — active service alerts for a trip.
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const carrier = url.searchParams.get('carrier');

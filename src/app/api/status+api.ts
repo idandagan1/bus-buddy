@@ -1,4 +1,4 @@
-import { getStatus } from '@/server/coachusa';
+import { getStatus } from '@/server/transit';
 import type { TripStatus } from '@/types';
 
 const MAX_TRIPS = 12;

@@ -20,8 +20,12 @@ npx expo run:ios --device     # iPhone build (needs Xcode and a signing team)
 ## Deploy the website
 
 ```sh
-npx expo export -p web && npx eas-cli@latest deploy --prod
+npm run build:njt && npx expo export -p web && npx eas-cli@latest deploy --prod
 ```
+
+`build:njt` downloads NJ Transit's public bus schedule (GTFS) and splits it into the small files under
+`public/njt/` that the server reads (generated, not committed). NJ Transit updates the feed every few weeks,
+so rebuild and redeploy now and then to pick up schedule changes.
 
 ## Ship an iPhone update
 

@@ -47,7 +47,8 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "lint": "expo lint",
-    "test": "jest"
+    "test": "jest",
+    "build:njt": "node scripts/build-njt.mts"
   },
   "private": true,
   "jest": {

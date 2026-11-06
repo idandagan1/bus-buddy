@@ -36,11 +36,26 @@ export const tapFeedback = () => {
   if (Platform.OS !== 'web') Haptics.selectionAsync();
 };
 
+// How close to the bottom (in points) counts as reaching the end, so more content loads before it's needed.
+const END_THRESHOLD = 600;
+
 // Scrollable page: optional full-bleed hero, then a centered column capped for desktop.
 // The first card tucks up under the hero; pass overlap={false} (to Hero too) when the page starts with a heading instead.
-export function Page({ children, hero, overlap = true }: { children: ReactNode; hero?: ReactNode; overlap?: boolean }) {
+// onEndReached fires while the rider scrolls near the bottom, for lists that load more as you go.
+export function Page({ children, hero, overlap = true, onEndReached }: { children: ReactNode; hero?: ReactNode; overlap?: boolean; onEndReached?: () => void }) {
   return (
-    <ScrollView style={styles.scroll} contentContainerStyle={styles.outer} keyboardShouldPersistTaps="handled">
+    <ScrollView
+      style={styles.scroll}
+      contentContainerStyle={styles.outer}
+      keyboardShouldPersistTaps="handled"
+      scrollEventThrottle={100}
+      onScroll={
+        onEndReached &&
+        (({ nativeEvent: { layoutMeasurement, contentOffset, contentSize } }) => {
+          if (layoutMeasurement.height + contentOffset.y >= contentSize.height - END_THRESHOLD) onEndReached();
+        })
+      }
+    >
       {hero}
       <View style={[styles.inner, hero && overlap ? styles.overlap : null]}>{children}</View>
     </ScrollView>

@@ -16,6 +16,7 @@ import { useDirection } from '@/direction';
 import { severityStyle } from '@/components/Advisories';
 import { ErrorState, StaleNote } from '@/components/ErrorState';
 import { GateBadge } from '@/components/GateBadge';
+import { CarrierTag } from '@/components/CarrierTag';
 import { LiveStatus, toneColors } from '@/components/LiveStatus';
 import { MyAlarms } from '@/components/MyAlarms';
 import { statusKey, summarize, useTripStatuses, type LiveSummary } from '@/live';
@@ -149,7 +150,7 @@ function NextBusHero({ route }: { route: SavedRoute }) {
     <Animated.View entering={CALM} style={styles.glass}>
       <View style={styles.glassTop}>
         <PulseDot color="#34d399" />
-        <Text style={styles.glassLabel}>{from.town} → {to.town} · Route {next.route}</Text>
+        <Text style={styles.glassLabel}>{from.town || from.name} → {to.town || to.name} · Route {next.route}</Text>
       </View>
       {live && <Text style={styles.glassLive} numberOfLines={1}>{live.text}</Text>}
       <View style={styles.glassRow}>
@@ -190,6 +191,7 @@ function RouteCard({ route, onRemove }: { route: SavedRoute; onRemove: () => voi
         <Animated.View key={reversed ? 'r' : 'f'} entering={SWAP} style={{ flex: 1, gap: 2 }}>
           <Text style={styles.cardFrom} numberOfLines={1}>{from.name}</Text>
           <Text style={styles.cardTo} numberOfLines={1}>→ {to.name}</Text>
+          <CarrierTag stop={route.from} />
         </Animated.View>
         <PressableScale onPress={swap} hitSlop={8} style={styles.swap}>
           <Animated.Text style={[styles.swapText, spinStyle]}>⇅</Animated.Text>

@@ -5,6 +5,8 @@ export type Stop = {
   state: string;
   latitude: number;
   longitude: number;
+  // Set for NJ Transit stops (which have no town); Coach USA stops leave it out.
+  carrier?: 'NJT';
 };
 
 export type TripStop = { name: string; time: string; latitude: number; longitude: number };

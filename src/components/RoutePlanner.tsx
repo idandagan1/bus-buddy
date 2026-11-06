@@ -73,6 +73,9 @@ export function RoutePlanner(props: { initialFrom?: Stop; initialTo?: Stop; save
   );
 }
 
+// NJ Transit stops have no town, so say whose stop it is instead.
+const stopPlace = (s: Stop) => (s.carrier === 'NJT' ? 'NJ Transit bus' : `${s.town}, ${s.state}`);
+
 function FieldRow(props: {
   label: string;
   stop: Stop | null;
@@ -98,7 +101,7 @@ function FieldRow(props: {
       ) : props.stop ? (
         <View>
           <Text style={styles.stopName} numberOfLines={1}>{props.stop.name}</Text>
-          <Text style={styles.stopTown}>{props.stop.town}, {props.stop.state}</Text>
+          <Text style={styles.stopTown}>{stopPlace(props.stop)}</Text>
         </View>
       ) : (
         <Text style={[styles.placeholder, props.disabled && { opacity: 0.5 }]}>{props.placeholder}</Text>
@@ -138,7 +141,7 @@ function Results({ query, origin, onPick }: { query: string; origin?: string; on
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.resultName}>{s.name}</Text>
-              <Text style={styles.stopTown}>{s.town}, {s.state}</Text>
+              <Text style={styles.stopTown}>{stopPlace(s)}</Text>
             </View>
           </PressableScale>
         </Animated.View>
