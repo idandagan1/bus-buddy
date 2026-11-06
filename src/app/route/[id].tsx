@@ -1,7 +1,7 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Platform, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { wakeBefore } from '@/wake';
 import Animated, { FadeInDown, FadeInLeft, FadeInRight, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { dayKey, formatCountdown, formatDay, formatTime, loadRoutes, useAdvisories, useNow, useTrips } from '@/api';
@@ -54,6 +54,8 @@ function Schedule({ from, to, onSwap, mapLink }: { from: Stop; to: Stop; onSwap:
   const next = trips?.find((t) => new Date(t.departure).getTime() > now);
   const selectedDay = day ?? (next ? dayKey(next.departure) : days[0]);
   const dayTrips = trips?.filter((t) => dayKey(t.departure) === selectedDay) ?? [];
+  // The header map shows the next bus; each ride's own map link covers a specific one (e.g. the bus you're on).
+  const mapTrip = next ?? trips?.at(-1);
   // Busy routes run 100+ trips a day: start just before the next departure (the latest buses on the road, for a
   // mid-ride alarm, are one tap away under "earlier trips"), and load more on scroll.
   const [shown, setShown] = useState(PAGE_SIZE);
@@ -100,6 +102,11 @@ function Schedule({ from, to, onSwap, mapLink }: { from: Stop; to: Stop; onSwap:
               <Text style={styles.heroTo} numberOfLines={1}>→ {to.name}</Text>
               <View style={styles.heroCarrier}>
                 <CarrierTag stop={from} onDark />
+                {Platform.OS !== 'android' && mapTrip && (
+                  <PressableScale onPress={() => router.push({ pathname: '/map', params: { ...mapLink, trip: mapTrip.id } })} hitSlop={8} style={styles.heroMap}>
+                    <Text style={styles.heroMapText}>🗺  Map</Text>
+                  </PressableScale>
+                )}
               </View>
             </Animated.View>
             <PressableScale onPress={swap} style={styles.swap}>
@@ -175,7 +182,8 @@ function TripRow(props: { mapLink: MapLink; trip: Trip; now: number; live: LiveS
   const minutes = Math.round((new Date(trip.arrival).getTime() - new Date(trip.departure).getTime()) / 60000);
 
   return (
-    <PressableScale onPress={props.onToggle} style={[styles.trip, shadow, isNext && styles.nextTrip, arrived && styles.pastTrip]}>
+    // A plain Pressable: tapping a ride just expands it, without the springy press-down of buttons.
+    <Pressable onPress={props.onToggle} style={[styles.trip, shadow, isNext && styles.nextTrip, arrived && styles.pastTrip]}>
       <View style={styles.tripRow}>
         {isNext && <PulseDot color={colors.primary} size={8} />}
         <Text style={[styles.tripTime, isNext && styles.nextText]}>{formatTime(trip.departure)}</Text>
@@ -210,13 +218,13 @@ function TripRow(props: { mapLink: MapLink; trip: Trip; now: number; live: LiveS
           })}
           {Platform.OS !== 'android' && (
             <PressableScale onPress={() => router.push({ pathname: '/map', params: { ...props.mapLink, trip: trip.id } })} style={styles.mapButton}>
-              <Text style={styles.mapText}>🗺  Map · where should I get off?</Text>
+              <Text style={styles.mapText}>🗺  Map for this ride</Text>
             </PressableScale>
           )}
           {Platform.OS === 'ios' && !arrived && <WakeButton trip={trip} live={live} />}
         </View>
       </Collapsible>
-    </PressableScale>
+    </Pressable>
   );
 }
 
@@ -243,7 +251,9 @@ const styles = StyleSheet.create({
   back: { color: 'rgba(255,255,255,0.85)', fontSize: 16, fontWeight: '600', marginBottom: 10 },
   heroRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   heroFrom: { color: '#fff', fontSize: 24, fontWeight: '800', letterSpacing: -0.4 },
-  heroCarrier: { marginTop: 8 },
+  heroCarrier: { marginTop: 10, flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
+  heroMap: { borderRadius: 10, paddingVertical: 4, paddingHorizontal: 10, backgroundColor: 'rgba(255,255,255,0.18)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)' },
+  heroMapText: { color: '#fff', fontSize: 13, fontWeight: '700' },
   heroTo: { color: 'rgba(255,255,255,0.8)', fontSize: 16, fontWeight: '500', marginTop: 4 },
   swap: { alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.16)', borderRadius: 18, paddingVertical: 10, paddingHorizontal: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)' },
   swapIcon: { color: '#fff', fontSize: 22, fontWeight: '700' },
@@ -271,8 +281,8 @@ const styles = StyleSheet.create({
   stopLine: { flex: 1, width: 2, backgroundColor: colors.border },
   stopName: { flex: 1, color: colors.text, fontSize: 14 },
   stopEdge: { fontWeight: '700', color: colors.text },
-  mapButton: { marginTop: 16, borderRadius: 14, paddingVertical: 12, alignItems: 'center', backgroundColor: colors.primarySoft },
-  mapText: { color: colors.primary, fontSize: 15, fontWeight: '700' },
+  mapButton: { marginTop: 14, alignSelf: 'center', paddingVertical: 6, paddingHorizontal: 12 },
+  mapText: { color: colors.primary, fontSize: 14, fontWeight: '700' },
   wake: { marginTop: 10, marginBottom: 4 },
   wakeInner: { borderRadius: 14, paddingVertical: 12, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 12 },
   wakeIcon: { fontSize: 22 },
