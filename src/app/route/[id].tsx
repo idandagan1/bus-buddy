@@ -136,7 +136,7 @@ function TripRow(props: { mapLink: MapLink; trip: Trip; now: number; live: LiveS
   const minutes = Math.round((new Date(trip.arrival).getTime() - new Date(trip.departure).getTime()) / 60000);
 
   return (
-    <PressableScale onPress={props.onToggle} style={[styles.trip, shadow, isNext && styles.nextTrip, past && styles.pastTrip]}>
+    <PressableScale onPress={props.onToggle} style={[styles.trip, shadow, isNext && styles.nextTrip, arrived && styles.pastTrip]}>
       <View style={styles.tripRow}>
         {isNext && <PulseDot color={colors.primary} size={8} />}
         <Text style={[styles.tripTime, isNext && styles.nextText]}>{formatTime(trip.departure)}</Text>
