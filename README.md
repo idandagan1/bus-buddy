@@ -13,6 +13,7 @@ Not affiliated with Coach USA. Data comes from coachusa.com's public web API; se
 ```sh
 npm install
 npx expo start --web          # web + API routes on http://localhost:8081
+npm test                      # unit tests (Jest)
 npx expo run:ios --device     # iPhone build (needs Xcode and a signing team)
 ```
 
