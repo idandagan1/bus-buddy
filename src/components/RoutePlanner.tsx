@@ -49,7 +49,7 @@ export function RoutePlanner(props: { initialFrom?: Stop; initialTo?: Stop; save
           <FieldRow
             label="To"
             stop={to}
-            placeholder={from ? 'Where are you going?' : 'Choose where you start first'}
+            placeholder="Where to, buddy?"
             active={active === 'to'}
             disabled={!from}
             query={query}
