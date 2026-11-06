@@ -84,12 +84,12 @@ export default function AlarmScreen() {
           </Animated.View>
           <Animated.View entering={FadeIn.delay(600).duration(800)} style={styles.nightCard}>
             {hasPath && <RouteSketch path={trip.path!} me={here} />}
-            {distance != null && <Text style={styles.nightBig}>{formatDistance(distance)} away</Text>}
+            {distance != null && <Text style={styles.nightBig}>{formatDistance(distance)} to go</Text>}
             {editing ? (
               <AlarmEditor trip={trip} onDone={() => setEditing(false)} />
             ) : (
               <>
-                <Text style={styles.nightInfo}>Rings when the bus is {formatDistance(trip.radius)} from your stop</Text>
+                <Text style={styles.nightInfo}>Alarm rings {formatDistance(trip.radius)} before your stop</Text>
                 {trip.backupAt && (
                   <Text style={styles.nightInfo}>Backup alarm at {new Date(trip.backupAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</Text>
                 )}

@@ -120,7 +120,7 @@ function TripMapView({ trip }: { trip: Trip }) {
           {!place && <Text style={styles.hint}>Search a place, or tap a stop on the map.</Text>}
         </View>
 
-        {Platform.OS === 'ios' && selected > 0 && new Date(trip.arrival).getTime() > now && (
+        {Platform.OS === 'ios' && selected > 0 && new Date(live?.arrival ?? trip.arrival).getTime() > now && (
           <PressableScale onPress={() => wakeBefore(trip, live, selected)}>
             <LinearGradient colors={gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.wake}>
               <Text style={styles.wakeText}>⏰ Wake me before this stop</Text>

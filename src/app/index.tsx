@@ -12,6 +12,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { formatCountdown, formatTime, loadRoutes, saveRoutes, useAdvisories, useNow, useTrips } from '@/api';
+import { useDirection } from '@/direction';
 import { severityStyle } from '@/components/Advisories';
 import { ErrorState, StaleNote } from '@/components/ErrorState';
 import { GateBadge } from '@/components/GateBadge';
@@ -125,9 +126,10 @@ function confirmRemove(name: string, onConfirm: () => void) {
   ]);
 }
 
-// Live h:mm:ss countdown to the very next bus on the first saved route.
+// Live h:mm:ss countdown to the very next bus on the first saved route, in the direction the rider is likely headed.
 function NextBusHero({ route }: { route: SavedRoute }) {
-  const { trips } = useTrips(route.from, route.to);
+  const { from, to } = useDirection(route);
+  const { trips } = useTrips(from, to);
   const now = useNow(1000);
   const statuses = useTripStatuses(trips, now);
   const liveOf = (t: Trip) => summarize(statuses[statusKey(t)]);
@@ -147,7 +149,7 @@ function NextBusHero({ route }: { route: SavedRoute }) {
     <Animated.View entering={CALM} style={styles.glass}>
       <View style={styles.glassTop}>
         <PulseDot color="#34d399" />
-        <Text style={styles.glassLabel}>{route.from.town} → {route.to.town} · Route {next.route}</Text>
+        <Text style={styles.glassLabel}>{from.town} → {to.town} · Route {next.route}</Text>
       </View>
       {live && <Text style={styles.glassLive} numberOfLines={1}>{live.text}</Text>}
       <View style={styles.glassRow}>

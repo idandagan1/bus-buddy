@@ -125,9 +125,14 @@ function Schedule({ from, to, onSwap, mapLink }: { from: Stop; to: Stop; onSwap:
 
 type MapLink = { route: string; reversed: string };
 
+// Without live data, a late bus may still be on the road a while after its scheduled arrival.
+const ARRIVAL_GRACE_MS = 30 * 60 * 1000;
+
 function TripRow(props: { mapLink: MapLink; trip: Trip; now: number; live: LiveSummary | null; isNext: boolean; expanded: boolean; onToggle: () => void }) {
   const { trip, now, isNext, live } = props;
   const past = new Date(trip.departure).getTime() < now;
+  // Riders can set the alarm mid-ride, so offer it until the bus has (probably) arrived.
+  const arrived = new Date(live?.arrival ?? trip.arrival).getTime() + (live ? 0 : ARRIVAL_GRACE_MS) < now;
   const minutes = Math.round((new Date(trip.arrival).getTime() - new Date(trip.departure).getTime()) / 60000);
 
   return (
@@ -169,7 +174,7 @@ function TripRow(props: { mapLink: MapLink; trip: Trip; now: number; live: LiveS
               <Text style={styles.mapText}>🗺  Map · where should I get off?</Text>
             </PressableScale>
           )}
-          {Platform.OS === 'ios' && !past && <WakeButton trip={trip} live={live} />}
+          {Platform.OS === 'ios' && !arrived && <WakeButton trip={trip} live={live} />}
         </View>
       </Collapsible>
     </PressableScale>

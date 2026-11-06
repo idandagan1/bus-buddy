@@ -29,8 +29,12 @@ function nearestOnSegment(p: LatLng, a: LatLng, b: LatLng): LatLng {
   return { latitude: a.latitude + t * (b.latitude - a.latitude), longitude: a.longitude + t * (b.longitude - a.longitude) };
 }
 
+// Roads wander away from the straight line between two stops (a highway, a tunnel approach), so being this
+// far off it still counts as on the route.
+const ON_ROUTE_M = 1500;
+
 // How far is left to the end of `path` (the trip's stops in order), following the stops instead of a straight
-// line, so a winding route doesn't ring early. Being off the route (e.g. still at home) counts toward the distance.
+// line, so a winding route doesn't ring early. Being well off the route (e.g. still at home) adds the excess.
 export function distanceAlongPath(here: LatLng, path: LatLng[]) {
   if (path.length < 2) return distanceMeters(here, path[path.length - 1]);
   const rest = path.map(() => 0);
@@ -41,7 +45,7 @@ export function distanceAlongPath(here: LatLng, path: LatLng[]) {
     const off = distanceMeters(here, snap);
     if (off < best.off) best = { off, left: distanceMeters(snap, path[i + 1]) + rest[i + 1] };
   }
-  return best.off + best.left;
+  return best.left + Math.max(0, best.off - ON_ROUTE_M);
 }
 
 // The point `meters` before the end of `path`, measured along it (or the start, if the path is shorter).
