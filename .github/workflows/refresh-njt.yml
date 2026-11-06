@@ -1,0 +1,30 @@
+# NJ Transit's developer schedule only covers about a week ahead, and its trip ids must match the live feeds,
+# so the website is rebuilt from a fresh copy every day. Needs repository secrets NJT_USERNAME, NJT_PASSWORD
+# and EXPO_TOKEN (an Expo access token).
+name: Refresh NJ Transit schedule
+
+on:
+  schedule:
+    - cron: '0 8 * * *' # 3–4 AM in New Jersey, before the morning rush
+  workflow_dispatch:
+
+concurrency: deploy-website
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build:njt
+        env:
+          NJT_USERNAME: ${{ secrets.NJT_USERNAME }}
+          NJT_PASSWORD: ${{ secrets.NJT_PASSWORD }}
+      - run: npx expo export -p web
+      - run: npx eas-cli@latest deploy --prod --environment production --non-interactive
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
