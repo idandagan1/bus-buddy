@@ -21,3 +21,13 @@ npx expo run:ios --device     # iPhone build (needs Xcode and a signing team)
 ```sh
 npx expo export -p web && npx eas-cli@latest deploy --prod
 ```
+
+## Ship an iPhone update
+
+JS-only changes go over the air to installed builds (they apply after the app is closed and reopened):
+
+```sh
+npx eas-cli@latest update --channel production --environment production --message "<what changed>"
+```
+
+The runtime version is a fingerprint of the native code, so after adding a native module or changing native config, make a new build with `npx expo run:ios --device --configuration Release`.
