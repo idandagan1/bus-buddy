@@ -9,6 +9,7 @@ export const toneColors = {
   warn: { fg: '#b45309', bg: '#fffbeb' },
   bad: { fg: '#be123c', bg: '#fff1f2' },
   info: { fg: colors.primary, bg: colors.primarySoft },
+  muted: { fg: colors.muted, bg: colors.bg },
 };
 
 // inline: sits in a row next to other content, sized to its text.
@@ -19,7 +20,7 @@ export function LiveStatus({ summary, compact, inline }: { summary: LiveSummary;
       {summary.live ? <PulseDot color={c.fg} size={7} /> : <View style={[styles.dot, { backgroundColor: c.fg }]} />}
       <Text style={[styles.text, { color: c.fg }]} numberOfLines={compact || inline ? 1 : 2}>
         {summary.text}
-        {!compact && summary.arrivalDelayMin ? ` · ≈ ${formatTime(summary.arrival)}` : ''}
+        {!compact && summary.stage === 'upcoming' && summary.arrivalDelayMin ? ` · ≈ ${formatTime(summary.arrival)}` : ''}
       </Text>
     </Animated.View>
   );

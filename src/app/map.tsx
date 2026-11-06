@@ -52,7 +52,7 @@ function TripMapView({ trip }: { trip: Trip }) {
   const insets = useSafeAreaInsets();
   const now = useNow();
   const status = useTripStatuses([trip], now)[statusKey(trip)];
-  const live = summarize(status);
+  const live = summarize(status, now);
   const bus = status?.position ?? null;
 
   const last = trip.stops.length - 1;

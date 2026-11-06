@@ -44,7 +44,7 @@ function Schedule({ from, to, onSwap, mapLink }: { from: Stop; to: Stop; onSwap:
   const advisories = useAdvisories(trips);
   const now = useNow();
   const statuses = useTripStatuses(trips, now);
-  const hasLive = Object.values(statuses).some((st) => summarize(st));
+  const hasLive = Object.values(statuses).some((st) => summarize(st, now));
   const days = useMemo(() => [...new Set(trips?.map((t) => dayKey(t.departure)))], [trips]);
   const [day, setDay] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -113,7 +113,7 @@ function Schedule({ from, to, onSwap, mapLink }: { from: Stop; to: Stop; onSwap:
       <View key={`${from.id}:${selectedDay}`} style={{ gap: 10 }}>
         {dayTrips.map((t, i) => (
           <Animated.View key={t.id} entering={enter.delay(Math.min(i, 10) * 35).duration(420).easing(EASE_OUT)}>
-            <TripRow mapLink={mapLink} trip={t} now={now} live={summarize(statuses[statusKey(t)])} isNext={t.id === next?.id} expanded={expanded === t.id} onToggle={() => setExpanded(expanded === t.id ? null : t.id)} />
+            <TripRow mapLink={mapLink} trip={t} now={now} live={summarize(statuses[statusKey(t)], now)} isNext={t.id === next?.id} expanded={expanded === t.id} onToggle={() => setExpanded(expanded === t.id ? null : t.id)} />
           </Animated.View>
         ))}
       </View>

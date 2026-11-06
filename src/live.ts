@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { AppState } from 'react-native';
+import { formatTime } from '@/api';
 import type { LiveTime, Trip, TripStatus } from '@/types';
 
 // Coach USA refreshes live data about once a minute, so polling faster than this buys nothing.
@@ -56,22 +57,27 @@ const describeOffset = (min: number) => (min === 0 ? 'on time' : min > 0 ? `${mi
 
 export type LiveSummary = {
   text: string;
-  tone: 'good' | 'warn' | 'bad' | 'info';
-  live: boolean;
+  tone: 'good' | 'warn' | 'bad' | 'info' | 'muted';
+  stage: 'upcoming' | 'departed' | 'arrived' | 'canceled';
+  live: boolean; // still to come and tracked: shown with a pulsing dot
   departure: string; // best-known departure time (actual > estimated > scheduled)
   arrival: string;
   arrivalDelayMin: number | null;
   vehicle: string | null;
 };
 
+// Upstream doesn't always report the actual arrival, so a ride this long past its arrival counts as done.
+const ARRIVED_AFTER_MS = 10 * 60 * 1000;
+
 // Turns a raw status into the one-line summary shown on trip cards, or null if there is nothing live yet.
-export function summarize(status: TripStatus | null | undefined): LiveSummary | null {
+export function summarize(status: TripStatus | null | undefined, now: number): LiveSummary | null {
   if (!status) return null;
   const departure = status.departure.actual ?? status.departure.estimated ?? status.departure.scheduled;
   const arrival = status.arrival.actual ?? status.arrival.estimated ?? status.arrival.scheduled;
+  const base = { departure, arrival, vehicle: status.vehicle };
 
   if (/CANCEL/i.test(status.state)) {
-    return { text: 'Canceled', tone: 'bad', live: false, departure, arrival, arrivalDelayMin: null, vehicle: status.vehicle };
+    return { ...base, text: 'Canceled', tone: 'bad', stage: 'canceled', live: false, arrivalDelayMin: null };
   }
 
   const departed = minutesOff(status.departure, 'actual');
@@ -79,16 +85,19 @@ export function summarize(status: TripStatus | null | undefined): LiveSummary | 
   const arrived = minutesOff(status.arrival, 'actual');
   const arriveEst = minutesOff(status.arrival, 'estimated');
   const arrivalDelayMin = arrived ?? arriveEst;
-  if (departed === null && departEst === null && arrivalDelayMin === null) return null;
-
-  // One short phrase for the stage the bus is in; "On time" when nothing is off.
-  let text: string;
-  if (arrived !== null) text = arrived === 0 ? 'Arrived on time' : `Arrived ${describeOffset(arrived)}`;
-  else if (departed !== null) text = !arriveEst ? 'On time' : `Arriving ${describeOffset(arriveEst)}`;
-  else text = !departEst ? 'On time' : `Leaving ${describeOffset(departEst)}`;
-
   const worst = Math.max(departed ?? departEst ?? 0, arrivalDelayMin ?? 0);
   const tone = worst >= 10 ? 'bad' : worst >= 3 ? 'warn' : 'good';
-  const live = /IN_PROGRESS/i.test(status.state) || departEst !== null;
-  return { text, tone, live, departure, arrival, arrivalDelayMin, vehicle: status.vehicle };
+
+  if (arrived !== null || /COMPLETED/i.test(status.state) || new Date(arrival).getTime() + ARRIVED_AFTER_MS < now) {
+    return { ...base, text: `Arrived ${formatTime(arrival)}`, tone: 'muted', stage: 'arrived', live: false, arrivalDelayMin };
+  }
+
+  // Not IN_PROGRESS: that starts when the bus leaves its first stop, which may be well before the rider's.
+  if (departed !== null || new Date(departure).getTime() < now) {
+    return { ...base, text: `Departed ${formatTime(departure)}`, tone, stage: 'departed', live: false, arrivalDelayMin };
+  }
+
+  if (departEst === null && arrivalDelayMin === null) return null;
+  const text = !departEst ? 'On time' : `Leaving ${describeOffset(departEst)}`;
+  return { ...base, text, tone, stage: 'upcoming', live: true, arrivalDelayMin };
 }

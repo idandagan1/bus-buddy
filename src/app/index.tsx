@@ -132,7 +132,7 @@ function NextBusHero({ route }: { route: SavedRoute }) {
   const { trips } = useTrips(from, to);
   const now = useNow(1000);
   const statuses = useTripStatuses(trips, now);
-  const liveOf = (t: Trip) => summarize(statuses[statusKey(t)]);
+  const liveOf = (t: Trip) => summarize(statuses[statusKey(t)], now);
   const next = trips?.find((t) => new Date(liveOf(t)?.departure ?? t.departure).getTime() > now);
   const live = next ? liveOf(next) : null;
 
@@ -171,7 +171,7 @@ function RouteCard({ route, onRemove }: { route: SavedRoute; onRemove: () => voi
   const alerts = useAdvisories(trips).filter((a) => a.severity === 'high');
   const now = useNow();
   const statuses = useTripStatuses(trips, now);
-  const liveOf = (t: Trip) => summarize(statuses[statusKey(t)]);
+  const liveOf = (t: Trip) => summarize(statuses[statusKey(t)], now);
   // A late bus stays "next" until it has actually left.
   const upcoming = trips?.filter((t) => new Date(liveOf(t)?.departure ?? t.departure).getTime() > now - 60000).slice(0, 3) ?? [];
 
