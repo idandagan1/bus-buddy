@@ -15,6 +15,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # `expo start` generates this (gitignored) file locally; it declares Expo's global types, CSS imports included.
+      - run: echo '/// <reference types="expo/types" />' > expo-env.d.ts
       - run: npx tsc --noEmit
       - run: npx expo lint
       - run: npm test
