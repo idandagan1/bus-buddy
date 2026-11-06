@@ -20,6 +20,7 @@
     "expo-status-bar": "~58.0.4",
     "expo-task-manager": "~58.0.13",
     "expo-updates": "~58.0.21",
+    "gtfs-realtime-bindings": "^2.2.0",
     "leaflet": "1.9.4",
     "react": "19.3.0",
     "react-dom": "19.3.0",
@@ -48,7 +49,7 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "test": "jest",
-    "build:njt": "node scripts/build-njt.mts"
+    "build:njt": "node --env-file-if-exists=.env.local scripts/build-njt.mts"
   },
   "private": true,
   "jest": {

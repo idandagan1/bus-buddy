@@ -1,27 +1,49 @@
-// Turns NJ Transit's public bus GTFS into small JSON files under public/njt/, because the full feed
+// Turns NJ Transit's bus GTFS into small JSON files under public/njt/, because the full feed
 // (~200 MB unzipped) is far too big to read inside a server request.
 //
 //   node scripts/build-njt.mts               # downloads the latest feed
 //   node scripts/build-njt.mts bus_data.zip  # or uses a local copy
 //
+// With NJT_USERNAME/NJT_PASSWORD set (npm run build:njt reads .env.local), the feed comes from NJ Transit's
+// developer API: its trip ids are the ones the realtime feeds use. The public download's ids don't match them.
+//
 // Output (served as static files, fetched by src/server/njtransit.ts):
 //   njt/index.json          services, route names, and stations (same-named stops grouped, e.g. Port Authority's many)
-//                           as [id, name, lat, lon, "stop ids", "route ids"] — kept small, it's read on every search
+//                           as [id, name, lat, lon, "stop ids", "route ids", "stop numbers"] — kept small, it's read on every search
 //   njt/routes/<id>.json    that route's stops, stop patterns and trips, with stop times as minute deltas
 
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const FEED_URL = 'https://www.njtransit.com/bus_data.zip';
+const API = 'https://pcsdata.njtransit.com/api/GTFSG2';
 const OUT = join(import.meta.dirname, '..', 'public', 'njt');
 // Same-named stops this close together are one place to a rider (different gates, sides of the street).
 const STATION_RADIUS_M = 400;
 
+const form = (fields: Record<string, string>) => {
+  const body = new FormData();
+  for (const [k, v] of Object.entries(fields)) body.append(k, v);
+  return { method: 'POST', body };
+};
+
+async function download() {
+  const { NJT_USERNAME: username, NJT_PASSWORD: password } = process.env;
+  if (!username || !password) {
+    console.warn('NJT_USERNAME/NJT_PASSWORD not set: using the public feed, so live status won\'t match trips.');
+    return fetch(FEED_URL);
+  }
+  const auth = await fetch(`${API}/authenticateUser`, form({ username, password }));
+  const { UserToken: token } = await auth.json();
+  if (!token) throw new Error(`NJ Transit login failed: ${auth.status}`);
+  return fetch(`${API}/getGTFS`, form({ token }));
+}
+
 async function feedZip(path: string | undefined, work: string) {
   if (path) return path;
-  const res = await fetch(FEED_URL);
+  const res = await download();
   if (!res.ok) throw new Error(`Download failed: ${res.status}`);
   const zip = join(work, 'bus_data.zip');
   writeFileSync(zip, Buffer.from(await res.arrayBuffer()));
@@ -87,17 +109,39 @@ async function main() {
     const dir = join(work, 'gtfs');
     execFileSync('unzip', ['-q', '-o', zip, '-d', dir]);
 
-    const services: Record<string, string[]> = {};
-    for (const r of rows(dir, 'calendar_dates.txt')) {
-      if (r.exception_type !== '1') continue;
-      (services[r.service_id] ??= []).push(`${r.date.slice(0, 4)}-${r.date.slice(4, 6)}-${r.date.slice(6, 8)}`);
+    // Each service's running dates: weekly patterns from calendar.txt (the developer feed), then added and
+    // removed days from calendar_dates.txt (the public feed lists every day there).
+    const isoDate = (d: string) => `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}`;
+    const dates: Record<string, Set<string>> = {};
+    const WEEKDAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    if (existsSync(join(dir, 'calendar.txt'))) {
+      for (const r of rows(dir, 'calendar.txt')) {
+        const set = (dates[r.service_id] ??= new Set());
+        for (let t = Date.parse(`${isoDate(r.start_date)}T12:00:00Z`); t <= Date.parse(`${isoDate(r.end_date)}T12:00:00Z`); t += 86400000) {
+          const day = new Date(t);
+          if (r[WEEKDAYS[day.getUTCDay()]] === '1') set.add(day.toISOString().slice(0, 10));
+        }
+      }
     }
+    for (const r of rows(dir, 'calendar_dates.txt')) {
+      const set = (dates[r.service_id] ??= new Set());
+      if (r.exception_type === '1') set.add(isoDate(r.date));
+      else set.delete(isoDate(r.date));
+    }
+    const services: Record<string, string[]> = {};
+    for (const [id, set] of Object.entries(dates)) if (set.size) services[id] = [...set].sort();
 
     const routeNames: Record<string, string> = {};
     for (const r of rows(dir, 'routes.txt')) routeNames[r.route_id] = r.route_short_name || r.route_long_name;
 
     const stops: Record<string, [string, number, number]> = {};
-    for (const r of rows(dir, 'stops.txt')) stops[r.stop_id] = [titleCase(r.stop_name), Number(r.stop_lat), Number(r.stop_lon)];
+    // The rider-facing stop number (on the sign); unlike stop_id it's the same across feeds, so station ids
+    // built from it survive a rebuild and saved routes keep working.
+    const codes: Record<string, string> = {};
+    for (const r of rows(dir, 'stops.txt')) {
+      stops[r.stop_id] = [titleCase(r.stop_name), Number(r.stop_lat), Number(r.stop_lon)];
+      codes[r.stop_id] = r.stop_code || r.stop_id;
+    }
 
     type RawTrip = { route: string; service: string; headsign: string; calls: [number, string, number][] };
     const trips = new Map<string, RawTrip>();
@@ -133,7 +177,7 @@ async function main() {
     // Stations: group served stops by name, then split each name's stops into clusters of nearby ones.
     const byName = new Map<string, string[]>();
     for (const id of stopRoutes.keys()) (byName.get(stops[id][0]) ?? byName.set(stops[id][0], []).get(stops[id][0])!).push(id);
-    const stations: { id: string; name: string; lat: number; lon: number; stops: string[]; routes: string[] }[] = [];
+    const stations: { id: string; name: string; lat: number; lon: number; stops: string[]; routes: string[]; codes: string[] }[] = [];
     for (const [name, ids] of byName) {
       const clusters: string[][] = [];
       for (const id of ids) {
@@ -146,14 +190,15 @@ async function main() {
         const lat = members.reduce((s, id) => s + stops[id][1], 0) / members.length;
         const lon = members.reduce((s, id) => s + stops[id][2], 0) / members.length;
         const routes = [...new Set(members.flatMap((id) => [...stopRoutes.get(id)!]))].sort();
-        stations.push({ id: `s${members[0]}`, name, lat: Number(lat.toFixed(5)), lon: Number(lon.toFixed(5)), stops: members, routes });
+        const stationCodes = [...new Set(members.map((id) => codes[id]))].sort();
+        stations.push({ id: `s${stationCodes[0]}`, name, lat: Number(lat.toFixed(5)), lon: Number(lon.toFixed(5)), stops: members, routes, codes: stationCodes });
       }
     }
 
     rmSync(OUT, { recursive: true, force: true });
     mkdirSync(join(OUT, 'routes'), { recursive: true });
     const feedDate = Object.values(services).flat().sort()[0];
-    const stationRows = stations.map((s) => [s.id, s.name, s.lat, s.lon, s.stops.join(' '), s.routes.join(' ')]);
+    const stationRows = stations.map((s) => [s.id, s.name, s.lat, s.lon, s.stops.join(' '), s.routes.join(' '), s.codes.join(' ')]);
     writeFileSync(join(OUT, 'index.json'), JSON.stringify({ feedDate, services, routes: routeNames, stations: stationRows }));
     let biggest = 0;
     for (const [id, r] of byRoute) {

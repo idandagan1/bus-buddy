@@ -19,10 +19,11 @@ export function getTrips(site: string, from: string, to: string, date: string): 
   return isNjt(from) ? njtransit.getTrips(site, from, to, date) : coachusa.getTrips(from, to, date);
 }
 
-export function getStatus(journeyId: string, date: string): Promise<TripStatus | null> {
-  return isNjt(journeyId) ? njtransit.getStatus(journeyId, date) : coachusa.getStatus(journeyId, date);
+export function getStatus(site: string, journeyId: string, date: string): Promise<TripStatus | null> {
+  return isNjt(journeyId) ? njtransit.getStatus(site, journeyId, date) : coachusa.getStatus(journeyId, date);
 }
 
 export function getAdvisories(carrier: string, fromZone: string | null, toZone: string | null): Promise<Advisory[]> {
-  return carrier === njtransit.CARRIER_CODE ? njtransit.getAdvisories(fromZone) : coachusa.getAdvisories(carrier, fromZone, toZone);
+  // NJ Transit alerts are a nice-to-have; if its feed is down, the trip list shouldn't fail.
+  return carrier === njtransit.CARRIER_CODE ? njtransit.getAdvisories(fromZone).catch(() => []) : coachusa.getAdvisories(carrier, fromZone, toZone);
 }

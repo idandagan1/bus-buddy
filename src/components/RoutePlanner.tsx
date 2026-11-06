@@ -44,7 +44,7 @@ export function RoutePlanner(props: { initialFrom?: Stop; initialTo?: Stop; save
           <View style={[styles.railDot, styles.railDotEnd]} />
         </View>
         <View style={{ flex: 1 }}>
-          <FieldRow label="From" stop={from} placeholder="Search a stop or town" active={active === 'from'} query={query} onQuery={setQuery} onPress={() => edit('from')} />
+          <FieldRow label="From" stop={from} placeholder="Stop, town, or stop #" active={active === 'from'} query={query} onQuery={setQuery} onPress={() => edit('from')} />
           <View style={styles.divider} />
           <FieldRow
             label="To"
@@ -74,8 +74,8 @@ export function RoutePlanner(props: { initialFrom?: Stop; initialTo?: Stop; save
   );
 }
 
-// NJ Transit stops have no town, so say whose stop it is instead.
-const stopPlace = (s: Stop) => (s.carrier === 'NJT' ? 'NJ Transit bus' : `${s.town}, ${s.state}`);
+// NJ Transit stops have no town; their stop number (on the sign at the stop) tells them apart instead.
+const stopPlace = (s: Stop) => (s.carrier !== 'NJT' ? `${s.town}, ${s.state}` : s.code ? `Stop #${s.code}` : 'NJ Transit bus');
 
 function FieldRow(props: {
   label: string;
@@ -142,7 +142,7 @@ function Results({ query, origin, onPick }: { query: string; origin?: string; on
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.resultName}>{s.name}</Text>
-              {s.carrier !== 'NJT' && <Text style={styles.stopTown}>{stopPlace(s)}</Text>}
+              <Text style={styles.stopTown}>{stopPlace(s)}</Text>
             </View>
             <View>
               <CarrierTag stop={s} />

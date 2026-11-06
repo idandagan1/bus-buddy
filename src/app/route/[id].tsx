@@ -158,7 +158,7 @@ function Schedule({ from, to, onSwap, mapLink }: { from: Stop; to: Stop; onSwap:
       )}
 
       <Text style={styles.footnote}>
-        {from.carrier === 'NJT' ? 'Scheduled times from NJ Transit · live status coming soon' : 'Times from Coach USA · live status updates every 15 seconds'}
+        Times from {from.carrier === 'NJT' ? 'NJ Transit' : 'Coach USA'} · live status updates every 15 seconds
       </Text>
     </Page>
   );
