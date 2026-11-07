@@ -12,6 +12,9 @@ const GEOFENCE_TASK = 'wake-geofence';
 const ARRIVAL_ALARM_ID = '6F1C2B4E-8A3D-4F5B-9C7E-1D2A3B4C5D6E';
 const BACKUP_ALARM_ID = 'A9B8C7D6-E5F4-4A3B-8C2D-1E0F9A8B7C6D';
 
+// After this long past the bus's due time the ride is over, even if the alarm was never dismissed.
+const EXPIRES_AFTER_MS = 60 * 60 * 1000;
+
 const listeners = new Set<(trip: ArmedTrip | null) => void>();
 
 export function subscribe(fn: (trip: ArmedTrip | null) => void) {
@@ -26,10 +29,26 @@ async function setTrip(trip: ArmedTrip | null) {
 
 const alarmTitle = (trip: Destination) => `Wake up — ${trip.name} is next`;
 
+// Location is only followed while an alarm is waiting to ring: never before one is set, and not after it rings.
+async function stopTracking() {
+  if (await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK)) await Location.stopLocationUpdatesAsync(LOCATION_TASK);
+  if (await Location.hasStartedGeofencingAsync(GEOFENCE_TASK)) await Location.stopGeofencingAsync(GEOFENCE_TASK);
+}
+
+const isExpired = (trip: ArmedTrip) => !!trip.dueAt && Date.now() > trip.dueAt + EXPIRES_AFTER_MS;
+
+// On launch: stop any tracking left running without a pending alarm (rang, expired, or app data cleared).
+export async function syncTracking() {
+  const trip = await loadArmedTrip();
+  if (trip && isExpired(trip)) return disarm();
+  if (!trip || trip.fired) await stopTracking();
+}
+
 async function fire() {
   const trip = await loadArmedTrip();
   if (!trip || trip.fired) return;
   await setTrip({ ...trip, fired: true });
+  await stopTracking();
 
   if (isAlarmKitAvailable()) {
     // A system alarm rings through silent mode and Focus, full screen on the lock screen.
@@ -46,7 +65,9 @@ async function fire() {
 
 async function check(location: { latitude: number; longitude: number }) {
   const trip = await loadArmedTrip();
-  if (trip && !trip.fired && distanceToStop(location, trip) <= trip.radius) await fire();
+  if (!trip || trip.fired) return stopTracking();
+  if (isExpired(trip)) return disarm();
+  if (distanceToStop(location, trip) <= trip.radius) await fire();
 }
 
 TaskManager.defineTask<{ locations: Location.LocationObject[] }>(LOCATION_TASK, async ({ data, error }) => {
@@ -130,8 +151,7 @@ export async function updateAlarm({ radius, backupMin }: AlarmOptions) {
 export async function disarm() {
   cancelAlarm(ARRIVAL_ALARM_ID);
   cancelAlarm(BACKUP_ALARM_ID);
-  if (await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK)) await Location.stopLocationUpdatesAsync(LOCATION_TASK);
-  if (await Location.hasStartedGeofencingAsync(GEOFENCE_TASK)) await Location.stopGeofencingAsync(GEOFENCE_TASK);
+  await stopTracking();
   await Notifications.dismissAllNotificationsAsync();
   await setTrip(null);
 }

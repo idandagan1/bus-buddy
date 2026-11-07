@@ -7,3 +7,4 @@ export const requestPermissions = async (): Promise<string | null> => 'The wake-
 export const arm = async (_dest: Destination, _options: AlarmOptions, _dueAt?: Date) => {};
 export const updateAlarm = async (_options: AlarmOptions) => {};
 export const disarm = async () => {};
+export const syncTracking = async () => {};

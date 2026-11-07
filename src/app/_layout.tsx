@@ -1,10 +1,16 @@
 import { Stack } from 'expo-router';
+import { useEffect } from 'react';
 import { View } from 'react-native';
+import { syncTracking } from '@/alarm';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { Toast } from '@/components/Toast';
 import { colors } from '@/ui';
 
 export default function RootLayout() {
+  useEffect(() => {
+    syncTracking().catch(() => {});
+  }, []);
+
   return (
     <View style={{ flex: 1 }}>
     <Stack

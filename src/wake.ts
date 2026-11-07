@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { Alert } from 'react-native';
+import { Alert, Linking } from 'react-native';
 import { arm, requestPermissions } from '@/alarm';
 import type { LiveSummary } from '@/live';
 import { loadSettings } from '@/settings';
@@ -9,7 +9,13 @@ import type { Trip } from '@/types';
 // with a time-based backup a few minutes before the bus is due there.
 export async function wakeBefore(trip: Trip, live: LiveSummary | null, stopIndex = trip.stops.length - 1) {
   const error = await requestPermissions();
-  if (error) return Alert.alert('Permission needed', error);
+  // iOS only asks once; after that the setting can only be changed in Settings, so take the rider there.
+  if (error) {
+    return Alert.alert('Permission needed', error, [
+      { text: 'Not now', style: 'cancel' },
+      { text: 'Open Settings', onPress: () => Linking.openSettings() },
+    ]);
+  }
   const stop = trip.stops[stopIndex];
   const { radiusM, backupMin } = await loadSettings();
   // Shift the stop's scheduled time by the live arrival delay so a late bus doesn't ring the backup too early.
