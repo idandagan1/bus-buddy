@@ -1,7 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, TextInput, View } from 'react-native';
-import Animated, { FadeIn } from 'react-native-reanimated';
+import Animated, { FadeIn, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { OfflineError, searchStops } from '@/api';
 import { CarrierTag } from '@/components/CarrierTag';
 import { ErrorState } from '@/components/ErrorState';
@@ -27,6 +27,17 @@ export function RoutePlanner(props: { initialFrom?: Stop; initialTo?: Stop; save
       setTo(stop);
       setActive(null);
     }
+  }
+
+  const spin = useSharedValue(0);
+  const spinStyle = useAnimatedStyle(() => ({ transform: [{ rotate: `${spin.value}deg` }] }));
+  function swap() {
+    if (!from || !to) return;
+    spin.set(withSpring(spin.get() + 180, { damping: 12 }));
+    setFrom(to);
+    setTo(from);
+    setQuery('');
+    setActive(null);
   }
 
   function edit(field: Field) {
@@ -57,6 +68,9 @@ export function RoutePlanner(props: { initialFrom?: Stop; initialTo?: Stop; save
             onPress={() => edit('to')}
           />
         </View>
+        <PressableScale onPress={swap} disabled={!from || !to} style={[styles.swap, (!from || !to) && { opacity: 0.4 }]} accessibilityLabel="Swap from and to">
+          <Animated.Text style={[styles.swapIcon, spinStyle]}>⇅</Animated.Text>
+        </PressableScale>
       </View>
 
       {active && <Results key={`${active}:${from?.id ?? ''}`} query={query} origin={active === 'to' ? from?.id : undefined} onPick={pick} />}
@@ -161,6 +175,8 @@ const styles = StyleSheet.create({
   railDot: { width: 12, height: 12, borderRadius: 6 },
   railDotEnd: { backgroundColor: colors.accent, borderRadius: 3 },
   railLine: { flex: 1, width: 2, backgroundColor: colors.border, marginVertical: 4 },
+  swap: { alignSelf: 'center', width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
+  swapIcon: { color: colors.primary, fontSize: 20, fontWeight: '700' },
   divider: { height: 1, backgroundColor: colors.border, marginHorizontal: 12, marginVertical: 4 },
   field: { paddingVertical: 12, paddingHorizontal: 14, borderRadius: 14, minHeight: 68, justifyContent: 'center' },
   fieldActive: { backgroundColor: colors.primarySoft },
