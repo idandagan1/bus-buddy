@@ -9,6 +9,8 @@ export type Stop = {
   carrier?: 'NJT';
   // NJ Transit's stop number, as on the sign at the stop.
   code?: string;
+  // NJ Transit route numbers serving the stop (for a destination, only the ones also serving the origin).
+  routes?: string[];
 };
 
 export type TripStop = { name: string; time: string; latitude: number; longitude: number };

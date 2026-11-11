@@ -32,12 +32,12 @@ export function RoutePlanner(props: { initialFrom?: Stop; initialTo?: Stop; save
   const spin = useSharedValue(0);
   const spinStyle = useAnimatedStyle(() => ({ transform: [{ rotate: `${spin.value}deg` }] }));
   function swap() {
-    if (!from || !to) return;
     spin.set(withSpring(spin.get() + 180, { damping: 12 }));
     setFrom(to);
     setTo(from);
     setQuery('');
-    setActive(null);
+    // The field being typed in follows the swap; with no origin left, ask for one (To needs it to search).
+    setActive(!to ? 'from' : active === 'from' ? 'to' : active === 'to' ? 'from' : null);
   }
 
   function edit(field: Field) {
@@ -68,7 +68,7 @@ export function RoutePlanner(props: { initialFrom?: Stop; initialTo?: Stop; save
             onPress={() => edit('to')}
           />
         </View>
-        <PressableScale onPress={swap} disabled={!from || !to} style={[styles.swap, (!from || !to) && { opacity: 0.4 }]} accessibilityLabel="Swap from and to">
+        <PressableScale onPress={swap} disabled={!from && !to} style={[styles.swap, !from && !to && { opacity: 0.4 }]} accessibilityLabel="Swap from and to">
           <Animated.Text style={[styles.swapIcon, spinStyle]}>⇅</Animated.Text>
         </PressableScale>
       </View>
@@ -89,7 +89,12 @@ export function RoutePlanner(props: { initialFrom?: Stop; initialTo?: Stop; save
 }
 
 // NJ Transit stops have no town; their stop number (on the sign at the stop) tells them apart instead.
-const stopPlace = (s: Stop) => (s.carrier !== 'NJT' ? `${s.town}, ${s.state}` : s.code ? `Stop #${s.code}` : 'NJ Transit bus');
+// Their route numbers tell Port Authority's NJ Transit gates from Coach USA's (166 vs 20, say).
+const stopPlace = (s: Stop) => {
+  if (s.carrier !== 'NJT') return `${s.town}, ${s.state}`;
+  const place = s.code ? `Stop #${s.code}` : 'NJ Transit bus';
+  return s.routes?.length ? `${place} · ${s.routes.length === 1 ? 'Bus' : 'Buses'} ${s.routes.join(', ')}` : place;
+};
 
 function FieldRow(props: {
   label: string;
@@ -114,9 +119,12 @@ function FieldRow(props: {
           onChangeText={props.onQuery}
         />
       ) : props.stop ? (
-        <View>
-          <Text style={styles.stopName} numberOfLines={1}>{props.stop.name}</Text>
-          <Text style={styles.stopTown}>{stopPlace(props.stop)}</Text>
+        <View style={styles.picked}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.stopName} numberOfLines={1}>{props.stop.name}</Text>
+            <Text style={styles.stopTown} numberOfLines={1}>{stopPlace(props.stop)}</Text>
+          </View>
+          <CarrierTag stop={props.stop} />
         </View>
       ) : (
         <Text style={[styles.placeholder, props.disabled && { opacity: 0.5 }]}>{props.placeholder}</Text>
@@ -156,7 +164,7 @@ function Results({ query, origin, onPick }: { query: string; origin?: string; on
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.resultName}>{s.name}</Text>
-              <Text style={styles.stopTown}>{stopPlace(s)}</Text>
+              <Text style={styles.stopTown} numberOfLines={2}>{stopPlace(s)}</Text>
             </View>
             <View>
               <CarrierTag stop={s} />
@@ -182,6 +190,7 @@ const styles = StyleSheet.create({
   fieldActive: { backgroundColor: colors.primarySoft },
   fieldLabel: { fontSize: 11, fontWeight: '700', color: colors.muted, letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 2 },
   input: { fontSize: 17, color: colors.text, paddingVertical: 2, outlineStyle: 'none' } as never,
+  picked: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   stopName: { fontSize: 17, fontWeight: '600', color: colors.text },
   stopTown: { fontSize: 13, color: colors.muted },
   placeholder: { fontSize: 17, color: colors.muted },

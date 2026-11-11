@@ -55,7 +55,7 @@ function loadRoute(origin: string, id: string) {
 const stationId = (id: string) => id.slice(ID_PREFIX.length);
 
 // `code` is the stop number to show: the one searched for, else the station's first.
-const toStop = (s: Station, code = s[6]?.split(' ')[0]): Stop => ({
+const toStop = (idx: Index, s: Station, only: Set<string> | null, code = s[6]?.split(' ')[0]): Stop => ({
   id: ID_PREFIX + s[0],
   name: s[1],
   town: '',
@@ -64,17 +64,22 @@ const toStop = (s: Station, code = s[6]?.split(' ')[0]): Stop => ({
   longitude: s[3],
   carrier: CARRIER_CODE,
   code,
+  routes: [...new Set(s[5].split(' ').filter((r) => !only || only.has(r)).map((r) => idx.routes[r] ?? r))].sort(
+    (a, b) => parseInt(a) - parseInt(b) || a.localeCompare(b),
+  ),
 });
 
 export async function searchStops(origin: string, query: string, from?: string): Promise<Stop[]> {
-  const { stations } = await loadIndex(origin);
+  const idx = await loadIndex(origin);
+  const { stations } = idx;
   const words = query.toLowerCase().split(/\s+/).filter(Boolean);
   let candidates = stations;
+  let routes: Set<string> | null = null;
   if (from) {
     const start = stations.find((s) => s[0] === stationId(from));
     if (!start) return [];
-    const routes = new Set(start[5].split(' '));
-    candidates = stations.filter((s) => s !== start && s[5].split(' ').some((r) => routes.has(r)));
+    const served = (routes = new Set(start[5].split(' ')));
+    candidates = stations.filter((s) => s !== start && s[5].split(' ').some((r) => served.has(r)));
   } else if (!words.length) {
     return [];
   }
@@ -86,12 +91,12 @@ export async function searchStops(origin: string, query: string, from?: string):
       return code ? [{ s, code }] : [];
     });
     hits.sort((a, b) => Number(b.code === n) - Number(a.code === n) || a.code.length - b.code.length || a.code.localeCompare(b.code));
-    return hits.slice(0, MAX_RESULTS).map(({ s, code }) => toStop(s, code));
+    return hits.slice(0, MAX_RESULTS).map(({ s, code }) => toStop(idx, s, routes, code));
   }
   return candidates
     .filter((s) => words.every((w) => s[1].toLowerCase().includes(w)))
     .slice(0, MAX_RESULTS)
-    .map((s) => toStop(s));
+    .map((s) => toStop(idx, s, routes));
 }
 
 // GTFS times count from "noon minus 12 hours" on the service day, which keeps them right across DST changes.
