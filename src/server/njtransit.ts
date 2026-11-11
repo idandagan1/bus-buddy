@@ -22,7 +22,7 @@ type Station = [id: string, name: string, lat: number, lon: number, stops: strin
 type Index = { feedDate: string; services: Record<string, string[]>; routes: Record<string, string>; stations: Station[] };
 // [trip id, pattern, service, headsign, first stop's minutes after midnight, ...minutes to each next stop]
 type RouteTrip = [string, number, string, number, number, ...number[]];
-type RouteFile = { stops: Record<string, [string, number, number]>; patterns: string[][]; headsigns: string[]; trips: RouteTrip[] };
+type RouteFile = { stops: Record<string, [string, number, number]>; patterns: string[][]; headsigns: string[]; variants?: string[]; trips: RouteTrip[] };
 
 // The files only change with a deploy, so a server instance can keep them for its whole life.
 let index: Promise<Index> | null = null;
@@ -207,7 +207,7 @@ export async function getTrips(origin: string, from: string, to: string, date: s
           id: `${ID_PREFIX}${tripId}:${day}`,
           journeyId: `${ID_PREFIX}${routeId}:${tripId}:${leg[0]}:${leg[1]}`,
           serviceDate: day,
-          route: idx.routes[routeId] ?? routeId,
+          route: (idx.routes[routeId] ?? routeId) + (file.variants?.[headsign] ?? ''),
           carrier: CARRIER_NAME,
           carrierCode: CARRIER_CODE,
           fromZone: routeId,

@@ -10,7 +10,7 @@
 // Output (served as static files, fetched by src/server/njtransit.ts):
 //   njt/index.json          services, route names, and stations (same-named stops grouped, e.g. Port Authority's many)
 //                           as [id, name, lat, lon, "stop ids", "route ids", "stop numbers"] — kept small, it's read on every search
-//   njt/routes/<id>.json    that route's stops, stop patterns and trips, with stop times as minute deltas
+//   njt/routes/<id>.json    that route's stops, stop patterns, headsigns (with variant letters) and trips, with stop times as minute deltas
 
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -88,8 +88,12 @@ const titleCase = (s: string) =>
     .map((w, i) => (i > 0 && SMALL_WORDS.has(w) ? w : w.replace(/(^|[-/(])([a-z])/g, (_, p, c) => p + c.toUpperCase())))
     .join(' ');
 
-// "1 JERSEY CITY JOURNAL SQ VIA RIVER TERMINAL-Exact Fare" → "Jersey City Journal Sq via River Terminal"
-const headsign = (raw: string, route: string) => titleCase(raw.replace(/-Exact Fare$/i, '').replace(new RegExp(`^${route}\\s+`), ''));
+// "1 JERSEY CITY JOURNAL SQ VIA RIVER TERMINAL-Exact Fare" → ["", "Jersey City Journal Sq via River Terminal"]
+// "166X NEW YORK I-95 EXPRESS" → ["X", "New York I-95 Express"]: the letter is the route variant riders see (166X, 166T).
+const headsign = (raw: string, route: string): [string, string] => {
+  const m = raw.replace(/-Exact Fare$/i, '').match(new RegExp(`^(?:${route}([A-Z]?)\\s+)?(.*)$`, 's'))!;
+  return [m[1] ?? '', titleCase(m[2])];
+};
 
 const minutes = (hms: string) => {
   const [h, m] = hms.split(':').map(Number);
@@ -143,7 +147,7 @@ async function main() {
       codes[r.stop_id] = r.stop_code || r.stop_id;
     }
 
-    type RawTrip = { route: string; service: string; headsign: string; calls: [number, string, number][] };
+    type RawTrip = { route: string; service: string; headsign: [string, string]; calls: [number, string, number][] };
     const trips = new Map<string, RawTrip>();
     for (const r of rows(dir, 'trips.txt')) {
       trips.set(r.trip_id, { route: r.route_id, service: r.service_id, headsign: headsign(r.trip_headsign, routeNames[r.route_id] ?? ''), calls: [] });
@@ -153,12 +157,12 @@ async function main() {
     }
 
     // Per route: unique stop sequences ("patterns"), and each trip as [id, pattern, service, headsign, start, ...deltas].
-    const byRoute = new Map<string, { patterns: string[][]; patternIndex: Map<string, number>; headsigns: string[]; trips: (string | number)[][] }>();
+    const byRoute = new Map<string, { patterns: string[][]; patternIndex: Map<string, number>; headsigns: string[]; variants: string[]; trips: (string | number)[][] }>();
     const stopRoutes = new Map<string, Set<string>>();
     for (const [tripId, t] of trips) {
       if (!t.calls.length || !services[t.service]) continue;
       t.calls.sort((a, b) => a[0] - b[0]);
-      const route = byRoute.get(t.route) ?? { patterns: [], patternIndex: new Map(), headsigns: [], trips: [] };
+      const route = byRoute.get(t.route) ?? { patterns: [], patternIndex: new Map(), headsigns: [], variants: [], trips: [] };
       byRoute.set(t.route, route);
       const stopIds = t.calls.map((c) => c[1]);
       const key = stopIds.join(' ');
@@ -167,8 +171,9 @@ async function main() {
         p = route.patterns.push(stopIds) - 1;
         route.patternIndex.set(key, p);
       }
-      let h = route.headsigns.indexOf(t.headsign);
-      if (h < 0) h = route.headsigns.push(t.headsign) - 1;
+      const [variant, text] = t.headsign;
+      let h = route.headsigns.findIndex((s, i) => s === text && route.variants[i] === variant);
+      if (h < 0) (h = route.headsigns.push(text) - 1), route.variants.push(variant);
       const times = t.calls.map((c) => c[2]);
       route.trips.push([tripId, p, t.service, h, times[0], ...times.slice(1).map((m, i) => m - times[i])]);
       for (const s of stopIds) (stopRoutes.get(s) ?? stopRoutes.set(s, new Set()).get(s)!).add(t.route);
@@ -203,7 +208,7 @@ async function main() {
     let biggest = 0;
     for (const [id, r] of byRoute) {
       const routeStops = Object.fromEntries([...new Set(r.patterns.flat())].map((s) => [s, stops[s]]));
-      const json = JSON.stringify({ stops: routeStops, patterns: r.patterns, headsigns: r.headsigns, trips: r.trips });
+      const json = JSON.stringify({ stops: routeStops, patterns: r.patterns, headsigns: r.headsigns, variants: r.variants, trips: r.trips });
       biggest = Math.max(biggest, json.length);
       writeFileSync(join(OUT, 'routes', `${encodeURIComponent(id)}.json`), json);
     }
