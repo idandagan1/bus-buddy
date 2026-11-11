@@ -67,10 +67,7 @@ export default function Home() {
                 <Text style={styles.gearIcon}>⚙︎</Text>
               </PressableScale>
             </View>
-            <Animated.Text style={styles.title}>
-              {routes?.length ? 'Your next bus' : 'Where are you headed?'}
-            </Animated.Text>
-            {routes?.[0] && <NextBusHero route={routes[0]} />}
+            {routes?.[0] ? <NextBusHero route={routes[0]} /> : <Animated.Text style={styles.title}>Where are you headed?</Animated.Text>}
           </Hero>
         }
       >
@@ -128,17 +125,28 @@ function confirmRemove(name: string, onConfirm: () => void) {
 }
 
 // Live h:mm:ss countdown to the very next bus on the first saved route, in the direction the rider is likely headed.
+// Owns the hero title too: with nothing to count down to (failed load, no buses left) it says so instead of
+// promising a "next bus" over an empty space.
 function NextBusHero({ route }: { route: SavedRoute }) {
   const { from, to } = useDirection(route);
-  const { trips } = useTrips(from, to);
+  const { trips, error } = useTrips(from, to);
   const now = useNow(1000);
   const statuses = useTripStatuses(trips, now);
   const liveOf = (t: Trip) => summarize(statuses[statusKey(t)], now);
   const next = trips?.find((t) => new Date(liveOf(t)?.departure ?? t.departure).getTime() > now);
   const live = next ? liveOf(next) : null;
 
-  if (!trips) return <Skeleton height={88} style={{ marginTop: 16, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 20 }} />;
-  if (!next) return null;
+  // A failed load with nothing cached would otherwise leave the skeleton up for good; the route card shows the error.
+  if (!trips && error) return <Animated.Text style={styles.title}>Your buses</Animated.Text>;
+  if (!trips) {
+    return (
+      <>
+        <Animated.Text style={styles.title}>Your next bus</Animated.Text>
+        <Skeleton height={88} style={{ marginTop: 16, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 20 }} />
+      </>
+    );
+  }
+  if (!next) return <Animated.Text style={styles.title}>Your buses</Animated.Text>;
 
   const departure = live?.departure ?? next.departure;
   const secs = Math.max(0, Math.floor((new Date(departure).getTime() - now) / 1000));
@@ -147,20 +155,23 @@ function NextBusHero({ route }: { route: SavedRoute }) {
   const ss = String(secs % 60).padStart(2, '0');
 
   return (
-    <Animated.View entering={CALM} style={styles.glass}>
-      <View style={styles.glassTop}>
-        <PulseDot color="#34d399" />
-        <Text style={styles.glassLabel}>{from.town || from.name} → {to.town || to.name} · Route {next.route}</Text>
-      </View>
-      {live && <Text style={styles.glassLive} numberOfLines={1}>{live.text}</Text>}
-      <View style={styles.glassRow}>
-        <Text style={styles.countdown}>{hh > 0 ? `${hh}:${mm}:${ss}` : `${mm}:${ss}`}</Text>
-        <View style={{ alignItems: 'flex-end' }}>
-          <Text style={styles.glassTime}>{formatTime(departure)}</Text>
-          <Text style={styles.glassSub}>{next.gate ? `Gate ${next.gate} · ` : ''}arrives {formatTime(live?.arrival ?? next.arrival)}</Text>
+    <>
+      <Animated.Text style={styles.title}>Your next bus</Animated.Text>
+      <Animated.View entering={CALM} style={styles.glass}>
+        <View style={styles.glassTop}>
+          <PulseDot color="#34d399" />
+          <Text style={styles.glassLabel}>{from.town || from.name} → {to.town || to.name} · Route {next.route}</Text>
         </View>
-      </View>
-    </Animated.View>
+        {live && <Text style={styles.glassLive} numberOfLines={1}>{live.text}</Text>}
+        <View style={styles.glassRow}>
+          <Text style={styles.countdown}>{hh > 0 ? `${hh}:${mm}:${ss}` : `${mm}:${ss}`}</Text>
+          <View style={{ alignItems: 'flex-end' }}>
+            <Text style={styles.glassTime}>{formatTime(departure)}</Text>
+            <Text style={styles.glassSub}>{next.gate ? `Gate ${next.gate} · ` : ''}arrives {formatTime(live?.arrival ?? next.arrival)}</Text>
+          </View>
+        </View>
+      </Animated.View>
+    </>
   );
 }
 
