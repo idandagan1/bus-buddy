@@ -1,6 +1,6 @@
 import { Stack } from 'expo-router';
 import { useEffect } from 'react';
-import { View } from 'react-native';
+import { AppState, View } from 'react-native';
 import { syncTracking } from '@/alarm';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { Toast } from '@/components/Toast';
@@ -9,6 +9,8 @@ import { colors } from '@/ui';
 export default function RootLayout() {
   useEffect(() => {
     syncTracking().catch(() => {});
+    const sub = AppState.addEventListener('change', (state) => state === 'active' && syncTracking().catch(() => {}));
+    return () => sub.remove();
   }, []);
 
   return (

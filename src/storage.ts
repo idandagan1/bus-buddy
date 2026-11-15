@@ -10,7 +10,8 @@ export type Destination = {
 };
 
 // dueAt: when the bus is due at the stop (live delay included), so the backup can be moved later.
-export type ArmedTrip = Destination & { radius: number; fired: boolean; dueAt?: number; backupMin?: number; backupAt?: number };
+// armedAt: when it was set, so an alarm without a due time still stops tracking eventually.
+export type ArmedTrip = Destination & { radius: number; fired: boolean; dueAt?: number; backupMin?: number; backupAt?: number; armedAt?: number };
 
 export type AlarmOptions = { radius: number; backupMin: number };
 

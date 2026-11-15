@@ -14,6 +14,8 @@ const BACKUP_ALARM_ID = 'A9B8C7D6-E5F4-4A3B-8C2D-1E0F9A8B7C6D';
 
 // After this long past the bus's due time the ride is over, even if the alarm was never dismissed.
 const EXPIRES_AFTER_MS = 60 * 60 * 1000;
+// Hard cap from when the alarm was set, whatever the due time says (a bad time, or none).
+const MAX_ARMED_MS = 4 * 60 * 60 * 1000;
 
 const listeners = new Set<(trip: ArmedTrip | null) => void>();
 
@@ -24,6 +26,7 @@ export function subscribe(fn: (trip: ArmedTrip | null) => void) {
 
 async function setTrip(trip: ArmedTrip | null) {
   await saveArmedTrip(trip);
+  scheduleExpiry(trip);
   listeners.forEach((fn) => fn(trip));
 }
 
@@ -35,13 +38,31 @@ async function stopTracking() {
   if (await Location.hasStartedGeofencingAsync(GEOFENCE_TASK)) await Location.stopGeofencingAsync(GEOFENCE_TASK);
 }
 
-const isExpired = (trip: ArmedTrip) => !!trip.dueAt && Date.now() > trip.dueAt + EXPIRES_AFTER_MS;
+// Alarms set before armedAt existed are capped from their due time instead.
+function expiresAt(trip: ArmedTrip) {
+  const cap = (trip.armedAt ?? trip.dueAt ?? Date.now()) + MAX_ARMED_MS;
+  return trip.dueAt ? Math.min(trip.dueAt + EXPIRES_AFTER_MS, cap) : cap;
+}
 
-// On launch: stop any tracking left running without a pending alarm (rang, expired, or app data cleared).
+const isExpired = (trip: ArmedTrip) => Date.now() > expiresAt(trip);
+
+// Location updates only arrive while the phone moves, so a rider who never reaches the stop and then sits still
+// would be tracked forever if expiry were only checked on updates. The app keeps running in the background while
+// it tracks location, so a timer still fires there.
+let expiryTimer: ReturnType<typeof setTimeout> | undefined;
+function scheduleExpiry(trip: ArmedTrip | null) {
+  clearTimeout(expiryTimer);
+  if (!trip || trip.fired) return;
+  expiryTimer = setTimeout(() => syncTracking().catch(() => {}), Math.max(0, expiresAt(trip) - Date.now()) + 1000);
+}
+
+// On launch and whenever the app comes back: stop any tracking left running without a pending alarm
+// (rang, expired, or app data cleared), and time the expiry of the one that's pending.
 export async function syncTracking() {
   const trip = await loadArmedTrip();
   if (trip && isExpired(trip)) return disarm();
   if (!trip || trip.fired) await stopTracking();
+  scheduleExpiry(trip);
 }
 
 async function fire() {
@@ -122,7 +143,7 @@ function geofence(dest: Destination, radius: number): Location.LocationRegion {
 export async function arm(dest: Destination, { radius, backupMin }: AlarmOptions, dueAt?: Date) {
   const due = dueAt?.getTime();
   const backupAt = backupTime(due, backupMin);
-  await setTrip({ ...dest, radius, fired: false, dueAt: due, backupMin, backupAt });
+  await setTrip({ ...dest, radius, fired: false, dueAt: due, backupMin, backupAt, armedAt: Date.now() });
   await scheduleBackup(dest, backupAt);
   await Location.startLocationUpdatesAsync(LOCATION_TASK, {
     accuracy: Location.Accuracy.High,
