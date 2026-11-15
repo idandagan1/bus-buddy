@@ -27,6 +27,8 @@ import { colors, EASE_OUT, gradient, Hero, Page, PressableScale, PulseDot, shado
 // Home stays calm: one short fade, no slides or staggers.
 const CALM = FadeIn.duration(250).easing(EASE_OUT);
 const SWAP = FadeIn.duration(200).easing(EASE_OUT);
+// Longest the next-bus card may show its loading placeholder.
+const HERO_LOADING_MS = 8000;
 
 const noopSubscribe = () => () => {};
 
@@ -131,13 +133,25 @@ function NextBusHero({ route }: { route: SavedRoute }) {
   const { from, to } = useDirection(route);
   const { trips, error } = useTrips(from, to);
   const now = useNow(1000);
+  // Whatever goes wrong while loading, the placeholder doesn't outstay its welcome: the route cards below
+  // have the same trips (and any error) anyway.
+  // Keyed by direction, so flipping direction gives the new one its own full wait.
+  const direction = `${from.id}>${to.id}`;
+  const [gaveUpOn, setGaveUpOn] = useState<string | null>(null);
+  const loading = !trips;
+  useEffect(() => {
+    if (!loading) return;
+    const timer = setTimeout(() => setGaveUpOn(direction), HERO_LOADING_MS);
+    return () => clearTimeout(timer);
+  }, [loading, direction]);
+  const loadingTooLong = gaveUpOn === direction;
   const statuses = useTripStatuses(trips, now);
   const liveOf = (t: Trip) => summarize(statuses[statusKey(t)], now);
   const next = trips?.find((t) => new Date(liveOf(t)?.departure ?? t.departure).getTime() > now);
   const live = next ? liveOf(next) : null;
 
   // A failed load with nothing cached would otherwise leave the skeleton up for good; the route card shows the error.
-  if (!trips && error) return <Animated.Text style={styles.title}>Your buses</Animated.Text>;
+  if (!trips && (error || loadingTooLong)) return <Animated.Text style={styles.title}>Your buses</Animated.Text>;
   if (!trips) {
     return (
       <>

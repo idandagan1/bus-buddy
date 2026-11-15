@@ -31,12 +31,19 @@ export class OfflineError extends Error {
   }
 }
 
+// A stalled request (weak cellular, a slow upstream) would otherwise keep screens loading indefinitely.
+const REQUEST_TIMEOUT_MS = 15000;
+
 async function getJson<T>(url: string, failure: string): Promise<T> {
+  const abort = new AbortController();
+  const timer = setTimeout(() => abort.abort(), REQUEST_TIMEOUT_MS);
   let res: Response;
   try {
-    res = await fetch(url);
+    res = await fetch(url, { signal: abort.signal });
   } catch {
-    throw new OfflineError();
+    throw abort.signal.aborted ? new Error(`${failure} (timed out)`) : new OfflineError();
+  } finally {
+    clearTimeout(timer);
   }
   if (!res.ok) throw new Error(failure);
   return res.json();
