@@ -87,7 +87,7 @@ export default function Home() {
               nudge={firstRun.nudge ? (firstRun.welcome ? 'waiting' : 'now') : undefined}
               onNudged={finishNudge}
             />
-            <Text style={styles.hint}>Save it once — next time you open the app, your buses are already here.</Text>
+            <Text style={styles.hint}>Save once - see it later.</Text>
           </Animated.View>
         )}
 

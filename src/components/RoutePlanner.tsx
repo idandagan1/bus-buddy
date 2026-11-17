@@ -4,13 +4,11 @@ import { ActivityIndicator, StyleSheet, Text, TextInput, View } from 'react-nati
 import Animated, {
   Easing,
   FadeIn,
-  FadeInDown,
   FadeOut,
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
   withRepeat,
-  withSequence,
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
@@ -72,15 +70,24 @@ export function RoutePlanner(props: {
     <View style={styles.wrap}>
       <View style={[styles.card, shadow]}>
         <View style={styles.rail}>
-          <View style={[styles.railDot, { backgroundColor: colors.primary }]} />
+          <View>
+            {props.nudge === 'now' && <NudgePing />}
+            <View style={[styles.railDot, { backgroundColor: colors.primary }]} />
+          </View>
           <View style={styles.railLine} />
           <View style={[styles.railDot, styles.railDotEnd]} />
         </View>
         <View style={{ flex: 1 }}>
-          <View>
-            {props.nudge === 'now' && <NudgeRing />}
-            <FieldRow label="From" stop={from} placeholder="Stop, town, or stop #" active={active === 'from'} query={query} onQuery={setQuery} onPress={() => edit('from')} />
-          </View>
+          <FieldRow
+              label="From"
+              stop={from}
+              placeholder={props.nudge ? 'Where do you catch the bus?' : 'Stop, town, or stop #'}
+              typed={props.nudge === 'now'}
+              active={active === 'from'}
+              query={query}
+              onQuery={setQuery}
+              onPress={() => edit('from')}
+            />
           <View style={styles.divider} />
           <FieldRow
             label="To"
@@ -98,8 +105,6 @@ export function RoutePlanner(props: {
         </PressableScale>
       </View>
 
-      {props.nudge === 'now' && <NudgeTip />}
-
       {active && <Results key={`${active}:${from?.id ?? ''}`} query={query} origin={active === 'to' ? from?.id : undefined} onPick={pick} />}
 
       {from && to && !active && (
@@ -115,31 +120,47 @@ export function RoutePlanner(props: {
   );
 }
 
-// A soft ring breathing around From, so a first-time user knows where to start.
-function NudgeRing() {
+// A ping rippling out of the From dot, like a "you are here" pin, so a first-time user knows where to start.
+function NudgePing() {
   const still = useReducedMotion();
-  const pulse = useSharedValue(0);
+  const ping = useSharedValue(0);
   useEffect(() => {
-    if (!still) pulse.set(withRepeat(withSequence(withTiming(1, { duration: 900, easing: Easing.out(Easing.quad) }), withTiming(0, { duration: 900, easing: Easing.in(Easing.quad) })), -1));
-  }, [still, pulse]);
-  const style = useAnimatedStyle(() => ({ opacity: 0.45 + pulse.get() * 0.55, transform: [{ scale: 1 + pulse.get() * 0.025 }] }));
-  return <Animated.View entering={FadeIn.duration(500)} exiting={FadeOut.duration(200)} pointerEvents="none" style={[styles.ring, style]} />;
+    if (!still) ping.set(withRepeat(withTiming(1, { duration: 1600, easing: Easing.out(Easing.quad) }), -1));
+  }, [still, ping]);
+  const style = useAnimatedStyle(() => ({ opacity: still ? 0.3 : 0.5 * (1 - ping.get()), transform: [{ scale: still ? 1.8 : 1 + ping.get() * 2 }] }));
+  return <Animated.View entering={FadeIn.duration(500)} exiting={FadeOut.duration(200)} pointerEvents="none" style={[styles.ping, style]} />;
 }
 
-function NudgeTip() {
+// Types the text out and erases it again, on a loop, behind a blinking caret, as if someone were asking the question.
+function TypedText({ text, style }: { text: string; style: object }) {
   const still = useReducedMotion();
-  const bob = useSharedValue(0);
+  const [shown, setShown] = useState(still ? text.length : 0);
+  const [erasing, setErasing] = useState(false);
   useEffect(() => {
-    if (!still) bob.set(withRepeat(withSequence(withTiming(-5, { duration: 600, easing: Easing.inOut(Easing.sin) }), withTiming(0, { duration: 600, easing: Easing.inOut(Easing.sin) })), -1));
-  }, [still, bob]);
-  const style = useAnimatedStyle(() => ({ transform: [{ translateY: bob.get() }] }));
+    if (still) return;
+    // Type it out, hold it, erase it faster than it was typed, pause on the empty field, and again.
+    const full = shown === text.length;
+    const delay = erasing ? (shown === 0 ? 700 : 30) : full ? 2200 : 55;
+    const timer = setTimeout(() => {
+      if (!erasing && full) setErasing(true);
+      else if (erasing && shown === 0) setErasing(false);
+      else setShown(shown + (erasing ? -1 : 1));
+    }, delay);
+    return () => clearTimeout(timer);
+  }, [still, text, shown, erasing]);
+  // A nested Text can't take an animated style on native, so the caret blinks on a plain timer.
+  const [caretOn, setCaretOn] = useState(true);
+  useEffect(() => {
+    if (still) return;
+    const timer = setInterval(() => setCaretOn((on) => !on), 530);
+    return () => clearInterval(timer);
+  }, [still]);
   return (
-    <Animated.View entering={FadeInDown.delay(300).duration(500)} exiting={FadeOut.duration(200)} style={[styles.tipWrap, style]} pointerEvents="none">
-      <View style={styles.tipArrow} />
-      <View style={styles.tip}>
-        <Text style={styles.tipText}>👆 Start here: where do you catch the bus?</Text>
-      </View>
-    </Animated.View>
+    <Text style={style}>
+      {/* A zero-width space keeps the line's height while the text is erased to nothing. */}
+      {text.slice(0, shown) || '\u200B'}
+      {!still && <Text style={[styles.caret, !caretOn && { opacity: 0 }]}>|</Text>}
+    </Text>
   );
 }
 
@@ -155,6 +176,7 @@ function FieldRow(props: {
   label: string;
   stop: Stop | null;
   placeholder: string;
+  typed?: boolean;
   active: boolean;
   disabled?: boolean;
   query: string;
@@ -181,6 +203,8 @@ function FieldRow(props: {
           </View>
           <CarrierTag stop={props.stop} />
         </View>
+      ) : props.typed ? (
+        <TypedText text={props.placeholder} style={styles.placeholder} />
       ) : (
         <Text style={[styles.placeholder, props.disabled && { opacity: 0.5 }]}>{props.placeholder}</Text>
       )}
@@ -243,17 +267,14 @@ const styles = StyleSheet.create({
   divider: { height: 1, backgroundColor: colors.border, marginHorizontal: 12, marginVertical: 4 },
   field: { paddingVertical: 12, paddingHorizontal: 14, borderRadius: 14, minHeight: 68, justifyContent: 'center' },
   fieldActive: { backgroundColor: colors.primarySoft },
-  ring: { position: 'absolute', top: -2, left: -2, right: -2, bottom: -2, borderRadius: 16, borderWidth: 2.5, borderColor: colors.primary, backgroundColor: colors.primarySoft },
-  tipWrap: { alignSelf: 'flex-start', marginTop: -6, marginLeft: 36 },
-  tipArrow: { marginLeft: 22, width: 0, height: 0, borderLeftWidth: 8, borderRightWidth: 8, borderBottomWidth: 8, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderBottomColor: colors.primary },
-  tip: { backgroundColor: colors.primary, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 },
-  tipText: { color: '#fff', fontSize: 14, fontWeight: '600' },
+  ping: { position: 'absolute', width: 12, height: 12, borderRadius: 6, backgroundColor: colors.primary },
   fieldLabel: { fontSize: 11, fontWeight: '700', color: colors.muted, letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 2 },
   input: { fontSize: 17, color: colors.text, paddingVertical: 2, outlineStyle: 'none' } as never,
   picked: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   stopName: { fontSize: 17, fontWeight: '600', color: colors.text },
   stopTown: { fontSize: 13, color: colors.muted },
   placeholder: { fontSize: 17, color: colors.muted },
+  caret: { color: colors.primary, fontWeight: '300' },
   results: { gap: 10, paddingBottom: 24 },
   result: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: colors.card, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 16, borderWidth: 1, borderColor: colors.border },
   pin: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
