@@ -19,9 +19,12 @@
 <link rel="icon" href="/favicon.png">
 <link rel="apple-touch-icon" href="/icon.png">
 <!-- getbusbuddy.com opens the web app; the privacy policy and support pages live here on GitHub Pages. -->
-<meta http-equiv="refresh" content="0; url=https://bus-buddy.expo.app">
+<meta http-equiv="refresh" content="2; url=https://bus-buddy.expo.app">
 <link rel="canonical" href="https://bus-buddy.expo.app">
-<script>location.replace('https://bus-buddy.expo.app');</script>
+<!-- Cloudflare Web Analytics (cookieless) -->
+<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "f3ae082a5b2747ddbd265e0efaf46d67"}'></script>
+<!-- Redirect once the analytics beacon has loaded, so the visit is counted; the meta refresh is the fallback. -->
+<script>addEventListener('load', () => setTimeout(() => location.replace('https://bus-buddy.expo.app'), 150));</script>
 </head>
 <body><a href="https://bus-buddy.expo.app">Open Bus Buddy</a></body>
 </html>
