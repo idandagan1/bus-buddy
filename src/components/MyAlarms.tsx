@@ -36,7 +36,7 @@ export function MyAlarms() {
         text: 'Cancel alarm',
         style: 'destructive',
         onPress: () => {
-          showToast(trip.fired ? 'Have a good day 👋' : 'Alarm cancelled');
+          showToast('Alarm cancelled');
           disarm();
         },
       },
@@ -58,11 +58,11 @@ export function MyAlarms() {
         <LinearGradient colors={['#13184a', '#2a1b5c']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.card, shadow]}>
           <PressableScale onPress={() => router.push('/alarm')}>
             <View style={styles.row}>
-              <Text style={styles.icon}>{trip.fired ? '⏰' : '🌙'}</Text>
+              <Text style={styles.icon}>🌙</Text>
               <View style={{ flex: 1, gap: 2 }}>
                 <View style={styles.row}>
-                  <PulseDot color={trip.fired ? '#fb7185' : '#a5b4fc'} size={7} />
-                  <Text style={styles.state}>{trip.fired ? 'Ringing now' : 'Armed'}</Text>
+                  <PulseDot color="#a5b4fc" size={7} />
+                  <Text style={styles.state}>Armed</Text>
                 </View>
                 <Text style={styles.name} numberOfLines={1}>Wake me before {trip.name}</Text>
                 <Text style={styles.info} numberOfLines={1}>
@@ -72,19 +72,17 @@ export function MyAlarms() {
               <Text style={styles.arrow}>›</Text>
             </View>
           </PressableScale>
-          {editing && !trip.fired ? (
+          {editing ? (
             <View style={styles.editor}>
               <AlarmEditor trip={trip} onDone={() => setEditing(false)} />
             </View>
           ) : (
             <View style={styles.actions}>
-              {!trip.fired && (
-                <PressableScale onPress={() => setEditing(true)} style={styles.cancel}>
-                  <Text style={styles.cancelText}>Edit</Text>
-                </PressableScale>
-              )}
+              <PressableScale onPress={() => setEditing(true)} style={styles.cancel}>
+                <Text style={styles.cancelText}>Edit</Text>
+              </PressableScale>
               <PressableScale onPress={cancel} style={styles.cancel}>
-                <Text style={styles.cancelText}>{trip.fired ? 'Stop alarm' : 'Cancel'}</Text>
+                <Text style={styles.cancelText}>Cancel</Text>
               </PressableScale>
             </View>
           )}

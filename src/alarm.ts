@@ -52,24 +52,32 @@ const isExpired = (trip: ArmedTrip) => Date.now() > expiresAt(trip);
 let expiryTimer: ReturnType<typeof setTimeout> | undefined;
 function scheduleExpiry(trip: ArmedTrip | null) {
   clearTimeout(expiryTimer);
-  if (!trip || trip.fired) return;
+  if (!trip) return;
   expiryTimer = setTimeout(() => syncTracking().catch(() => {}), Math.max(0, expiresAt(trip) - Date.now()) + 1000);
 }
 
+// Once the arrival alarm rings nothing is left to wait for (it cancels the backup), so the alarm is done.
+// Stopping the ringing alarm itself is left to the system alarm UI.
+async function finish() {
+  await stopTracking();
+  await setTrip(null);
+}
+
 // On launch and whenever the app comes back: stop any tracking left running without a pending alarm
-// (rang, expired, or app data cleared), and time the expiry of the one that's pending.
+// (expired, or app data cleared), and time the expiry of the one that's pending.
 export async function syncTracking() {
   const trip = await loadArmedTrip();
+  // Older builds kept a rung alarm around as `fired` until it was stopped by hand.
+  if (trip?.fired) return finish();
   if (trip && isExpired(trip)) return disarm();
-  if (!trip || trip.fired) await stopTracking();
+  if (!trip) await stopTracking();
   scheduleExpiry(trip);
 }
 
 async function fire() {
   const trip = await loadArmedTrip();
-  if (!trip || trip.fired) return;
-  await setTrip({ ...trip, fired: true });
-  await stopTracking();
+  if (!trip) return;
+  await finish();
 
   if (isAlarmKitAvailable()) {
     // A system alarm rings through silent mode and Focus, full screen on the lock screen.
@@ -86,7 +94,7 @@ async function fire() {
 
 async function check(location: { latitude: number; longitude: number }) {
   const trip = await loadArmedTrip();
-  if (!trip || trip.fired) return stopTracking();
+  if (!trip) return stopTracking();
   if (isExpired(trip)) return disarm();
   if (distanceToStop(location, trip) <= trip.radius) await fire();
 }
@@ -143,7 +151,7 @@ function geofence(dest: Destination, radius: number): Location.LocationRegion {
 export async function arm(dest: Destination, { radius, backupMin }: AlarmOptions, dueAt?: Date) {
   const due = dueAt?.getTime();
   const backupAt = backupTime(due, backupMin);
-  await setTrip({ ...dest, radius, fired: false, dueAt: due, backupMin, backupAt, armedAt: Date.now() });
+  await setTrip({ ...dest, radius, dueAt: due, backupMin, backupAt, armedAt: Date.now() });
   await scheduleBackup(dest, backupAt);
   await Location.startLocationUpdatesAsync(LOCATION_TASK, {
     accuracy: Location.Accuracy.High,
@@ -159,7 +167,7 @@ export async function arm(dest: Destination, { radius, backupMin }: AlarmOptions
 // Change the ring distance and backup of the alarm that's already set.
 export async function updateAlarm({ radius, backupMin }: AlarmOptions) {
   const trip = await loadArmedTrip();
-  if (!trip || trip.fired) return;
+  if (!trip) return;
   const backupAt = backupTime(trip.dueAt, backupMin);
   await setTrip({ ...trip, radius, backupMin, backupAt });
   await scheduleBackup(trip, backupAt);

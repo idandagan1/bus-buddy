@@ -1,5 +1,4 @@
 import * as Location from 'expo-location';
-import { LinearGradient } from 'expo-linear-gradient';
 import { router, Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
@@ -15,7 +14,7 @@ import { loadArmedTrip, type ArmedTrip } from '@/storage';
 
 const leave = () => (router.canGoBack() ? router.back() : router.replace('/'));
 
-// Sleep screen while an alarm is armed, ringing screen once it fires. With no alarm there is nothing to show.
+// Sleep screen while an alarm is armed. Once it rings or with no alarm there is nothing to show.
 export default function AlarmScreen() {
   // undefined while loading, null when no alarm is set.
   const [trip, setTrip] = useState<ArmedTrip | null | undefined>(undefined);
@@ -30,7 +29,7 @@ export default function AlarmScreen() {
     };
   }, []);
 
-  // Cancelled, stopped, or never set: go back to wherever the rider came from.
+  // Cancelled, rung, or never set: go back to wherever the rider came from.
   useEffect(() => {
     if (trip === null) leave();
   }, [trip]);
@@ -45,28 +44,11 @@ export default function AlarmScreen() {
   const distance = trip && here ? distanceToStop(here, trip) : null;
 
   function cancel() {
-    showToast(trip?.fired ? 'Have a good day 👋' : 'Alarm cancelled');
+    showToast('Alarm cancelled');
     disarm();
   }
 
   if (!trip) return <Stack.Screen options={{ headerShown: false }} />;
-
-  if (trip.fired) {
-    return (
-      <LinearGradient colors={['#f97316', '#e11d48']} style={styles.fill}>
-        <Stack.Screen options={{ headerShown: false }} />
-        <SafeAreaView style={styles.armed}>
-          <StatusBar style="light" />
-          <Text style={styles.firedEmoji}>⏰</Text>
-          <Text style={styles.nightLabel}>You’re almost there!</Text>
-          <Text style={styles.nightName}>{trip.name}</Text>
-          <Pressable style={styles.stopButton} onPress={cancel}>
-            <Text style={styles.stopText}>STOP ALARM</Text>
-          </Pressable>
-        </SafeAreaView>
-      </LinearGradient>
-    );
-  }
 
   const hasPath = !!trip.path && trip.path.length > 1;
   return (
@@ -121,7 +103,4 @@ const styles = StyleSheet.create({
   nightEdit: { color: '#a5b4fc', fontSize: 15, fontWeight: '700', marginTop: 6, paddingVertical: 4, paddingHorizontal: 12 },
   nightBack: { position: 'absolute', top: 56, left: 20, color: 'rgba(255,255,255,0.75)', fontSize: 16, fontWeight: '600' },
   nightHint: { color: 'rgba(255,255,255,0.5)', fontSize: 13, textAlign: 'center', marginTop: 4 },
-  firedEmoji: { fontSize: 72 },
-  stopButton: { marginTop: 28, backgroundColor: '#fff', paddingVertical: 20, paddingHorizontal: 48, borderRadius: 18 },
-  stopText: { fontSize: 22, fontWeight: '800', color: '#e11d48' },
 });
