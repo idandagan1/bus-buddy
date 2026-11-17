@@ -21,10 +21,14 @@
 <!-- getbusbuddy.com opens the web app; the privacy policy and support pages live here on GitHub Pages. -->
 <meta http-equiv="refresh" content="2; url=https://bus-buddy.expo.app">
 <link rel="canonical" href="https://bus-buddy.expo.app">
+<!-- Redirect once the analytics beacon has loaded, so the visit is counted. The timer doesn't wait for the page
+     load event, so a slow or hung beacon can't hold the redirect (the meta refresh only starts after load). -->
+<script>
+var go = () => location.replace('https://bus-buddy.expo.app');
+setTimeout(go, 1500);
+</script>
 <!-- Cloudflare Web Analytics (cookieless) -->
-<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "f3ae082a5b2747ddbd265e0efaf46d67"}'></script>
-<!-- Redirect once the analytics beacon has loaded, so the visit is counted; the meta refresh is the fallback. -->
-<script>addEventListener('load', () => setTimeout(() => location.replace('https://bus-buddy.expo.app'), 150));</script>
+<script async src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "f3ae082a5b2747ddbd265e0efaf46d67"}' onload="setTimeout(go, 150)" onerror="go()"></script>
 </head>
 <body><a href="https://bus-buddy.expo.app">Open Bus Buddy</a></body>
 </html>
