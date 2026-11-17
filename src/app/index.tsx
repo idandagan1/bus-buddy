@@ -130,7 +130,7 @@ function confirmRemove(name: string, onConfirm: () => void) {
 // Owns the hero title too: with nothing to count down to (failed load, no buses left) it says so instead of
 // promising a "next bus" over an empty space.
 function NextBusHero({ route }: { route: SavedRoute }) {
-  const { from, to } = useDirection(route);
+  const { from, to, reversed } = useDirection(route);
   const { trips, error } = useTrips(from, to);
   const now = useNow(1000);
   // Whatever goes wrong while loading, the placeholder doesn't outstay its welcome: the route cards below
@@ -163,6 +163,8 @@ function NextBusHero({ route }: { route: SavedRoute }) {
   if (!next) return <Animated.Text style={styles.title}>Your buses</Animated.Text>;
 
   const departure = live?.departure ?? next.departure;
+  const openMap = () =>
+    router.push({ pathname: '/map', params: { route: route.id, reversed: reversed ? '1' : '0', trip: next.id } });
   const secs = Math.max(0, Math.floor((new Date(departure).getTime() - now) / 1000));
   const hh = Math.floor(secs / 3600);
   const mm = String(Math.floor((secs % 3600) / 60)).padStart(2, '0');
@@ -175,6 +177,11 @@ function NextBusHero({ route }: { route: SavedRoute }) {
         <View style={styles.glassTop}>
           <PulseDot color="#34d399" />
           <Text style={styles.glassLabel}>{from.town || from.name} → {to.town || to.name} · Route {next.route}</Text>
+          {Platform.OS !== 'android' && (
+            <PressableScale onPress={openMap} hitSlop={8} style={styles.mapButton}>
+              <Text style={styles.mapText}>🗺  Map</Text>
+            </PressableScale>
+          )}
         </View>
         {live && <Text style={styles.glassLive} numberOfLines={1}>{live.text}</Text>}
         <View style={styles.glassRow}>
@@ -329,6 +336,8 @@ const styles = StyleSheet.create({
   glassLive: { color: '#a7f3d0', fontSize: 13, fontWeight: '600', marginTop: 6 },
   delay: { borderRadius: 8, paddingHorizontal: 6, paddingVertical: 1 },
   delayText: { fontSize: 12, fontWeight: '700' },
+  mapButton: { marginLeft: 'auto', borderRadius: 12, paddingVertical: 6, paddingHorizontal: 12, backgroundColor: 'rgba(255,255,255,0.18)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)' },
+  mapText: { color: '#fff', fontSize: 14, fontWeight: '700' },
   glassSub: { color: 'rgba(255,255,255,0.7)', fontSize: 13 },
   hint: { color: colors.muted, textAlign: 'center', marginTop: 14, fontSize: 14 },
   card: { backgroundColor: colors.card, borderRadius: 20, padding: 16, gap: 12 },

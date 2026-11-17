@@ -57,7 +57,9 @@ export default function AlarmScreen() {
       <NightSky>
         <SafeAreaView style={styles.armed}>
           <StatusBar style="light" />
-          <Text style={styles.nightBack} onPress={leave}>‹ Back</Text>
+          <Pressable onPress={leave} hitSlop={12} style={styles.nightBack}>
+            <Text style={styles.nightBackText}>‹ Back</Text>
+          </Pressable>
           <Moon size={hasPath ? 100 : 140} />
           <Animated.Text entering={FadeIn.delay(200).duration(800)} style={styles.sleepWell}>Sleep well</Animated.Text>
           <Animated.View entering={FadeIn.delay(400).duration(800)} style={{ alignItems: 'center', gap: 4 }}>
@@ -101,6 +103,7 @@ const styles = StyleSheet.create({
   cancelButton: { marginTop: 12, paddingVertical: 14, paddingHorizontal: 36, borderRadius: 16, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.35)' },
   cancelText: { color: '#fff', fontSize: 17, fontWeight: '700' },
   nightEdit: { color: '#a5b4fc', fontSize: 15, fontWeight: '700', marginTop: 6, paddingVertical: 4, paddingHorizontal: 12 },
-  nightBack: { position: 'absolute', top: 56, left: 20, color: 'rgba(255,255,255,0.75)', fontSize: 16, fontWeight: '600' },
+  nightBack: { position: 'absolute', top: 52, left: 16, paddingVertical: 10, paddingHorizontal: 16, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.12)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' },
+  nightBackText: { color: '#fff', fontSize: 18, fontWeight: '700' },
   nightHint: { color: 'rgba(255,255,255,0.5)', fontSize: 13, textAlign: 'center', marginTop: 4 },
 });
