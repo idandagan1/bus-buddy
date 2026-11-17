@@ -16,6 +16,7 @@ import { useDirection } from '@/direction';
 import { severityStyle } from '@/components/Advisories';
 import { ErrorState, StaleNote } from '@/components/ErrorState';
 import { GateBadge } from '@/components/GateBadge';
+import { finishNudge, useFirstRun } from '@/firstRun';
 import { CarrierTag } from '@/components/CarrierTag';
 import { LiveStatus, toneColors } from '@/components/LiveStatus';
 import { MyAlarms } from '@/components/MyAlarms';
@@ -43,6 +44,7 @@ function useGreeting() {
 export default function Home() {
   const [routes, setRoutes] = useState<SavedRoute[] | null>(null);
   const greeting = useGreeting();
+  const firstRun = useFirstRun();
 
   useFocusEffect(
     useCallback(() => {
@@ -77,9 +79,14 @@ export default function Home() {
           </Hero>
         }
       >
-        {routes?.length === 0 && (
+        {routes?.length === 0 && firstRun && (
           <Animated.View entering={CALM}>
-            <RoutePlanner onSave={addFirst} saveLabel="Save my route" />
+            <RoutePlanner
+              onSave={addFirst}
+              saveLabel="Save my route"
+              nudge={firstRun.nudge ? (firstRun.welcome ? 'waiting' : 'now') : undefined}
+              onNudged={finishNudge}
+            />
             <Text style={styles.hint}>Save it once — next time you open the app, your buses are already here.</Text>
           </Animated.View>
         )}

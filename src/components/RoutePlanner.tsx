@@ -1,7 +1,19 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, TextInput, View } from 'react-native';
-import Animated, { FadeIn, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
+import Animated, {
+  Easing,
+  FadeIn,
+  FadeInDown,
+  FadeOut,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withRepeat,
+  withSequence,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
 import { OfflineError, searchStops } from '@/api';
 import { CarrierTag } from '@/components/CarrierTag';
 import { ErrorState } from '@/components/ErrorState';
@@ -11,10 +23,19 @@ import { colors, EASE_OUT, gradient, PressableScale, shadow } from '@/ui';
 type Field = 'from' | 'to';
 
 // From/To search card. Destinations are limited to stops reachable from the chosen origin.
-export function RoutePlanner(props: { initialFrom?: Stop; initialTo?: Stop; saveLabel?: string; onSave: (from: Stop, to: Stop) => void }) {
+// `nudge` points a first-time user at From instead of opening the keyboard on it: 'waiting' while the
+// welcome scene still covers the screen, 'now' once it's gone. Tapping From calls onNudged.
+export function RoutePlanner(props: {
+  initialFrom?: Stop;
+  initialTo?: Stop;
+  saveLabel?: string;
+  nudge?: 'waiting' | 'now';
+  onNudged?: () => void;
+  onSave: (from: Stop, to: Stop) => void;
+}) {
   const [from, setFrom] = useState<Stop | null>(props.initialFrom ?? null);
   const [to, setTo] = useState<Stop | null>(props.initialTo ?? null);
-  const [active, setActive] = useState<Field | null>(props.initialFrom ? null : 'from');
+  const [active, setActive] = useState<Field | null>(props.initialFrom || props.nudge ? null : 'from');
   const [query, setQuery] = useState('');
 
   function pick(stop: Stop) {
@@ -42,6 +63,7 @@ export function RoutePlanner(props: { initialFrom?: Stop; initialTo?: Stop; save
 
   function edit(field: Field) {
     if (field === 'to' && !from) return;
+    if (field === 'from' && props.nudge) props.onNudged?.();
     setQuery('');
     setActive(field);
   }
@@ -55,7 +77,10 @@ export function RoutePlanner(props: { initialFrom?: Stop; initialTo?: Stop; save
           <View style={[styles.railDot, styles.railDotEnd]} />
         </View>
         <View style={{ flex: 1 }}>
-          <FieldRow label="From" stop={from} placeholder="Stop, town, or stop #" active={active === 'from'} query={query} onQuery={setQuery} onPress={() => edit('from')} />
+          <View>
+            {props.nudge === 'now' && <NudgeRing />}
+            <FieldRow label="From" stop={from} placeholder="Stop, town, or stop #" active={active === 'from'} query={query} onQuery={setQuery} onPress={() => edit('from')} />
+          </View>
           <View style={styles.divider} />
           <FieldRow
             label="To"
@@ -73,6 +98,8 @@ export function RoutePlanner(props: { initialFrom?: Stop; initialTo?: Stop; save
         </PressableScale>
       </View>
 
+      {props.nudge === 'now' && <NudgeTip />}
+
       {active && <Results key={`${active}:${from?.id ?? ''}`} query={query} origin={active === 'to' ? from?.id : undefined} onPick={pick} />}
 
       {from && to && !active && (
@@ -85,6 +112,34 @@ export function RoutePlanner(props: { initialFrom?: Stop; initialTo?: Stop; save
         </Animated.View>
       )}
     </View>
+  );
+}
+
+// A soft ring breathing around From, so a first-time user knows where to start.
+function NudgeRing() {
+  const still = useReducedMotion();
+  const pulse = useSharedValue(0);
+  useEffect(() => {
+    if (!still) pulse.set(withRepeat(withSequence(withTiming(1, { duration: 900, easing: Easing.out(Easing.quad) }), withTiming(0, { duration: 900, easing: Easing.in(Easing.quad) })), -1));
+  }, [still, pulse]);
+  const style = useAnimatedStyle(() => ({ opacity: 0.45 + pulse.get() * 0.55, transform: [{ scale: 1 + pulse.get() * 0.025 }] }));
+  return <Animated.View entering={FadeIn.duration(500)} exiting={FadeOut.duration(200)} pointerEvents="none" style={[styles.ring, style]} />;
+}
+
+function NudgeTip() {
+  const still = useReducedMotion();
+  const bob = useSharedValue(0);
+  useEffect(() => {
+    if (!still) bob.set(withRepeat(withSequence(withTiming(-5, { duration: 600, easing: Easing.inOut(Easing.sin) }), withTiming(0, { duration: 600, easing: Easing.inOut(Easing.sin) })), -1));
+  }, [still, bob]);
+  const style = useAnimatedStyle(() => ({ transform: [{ translateY: bob.get() }] }));
+  return (
+    <Animated.View entering={FadeInDown.delay(300).duration(500)} exiting={FadeOut.duration(200)} style={[styles.tipWrap, style]} pointerEvents="none">
+      <View style={styles.tipArrow} />
+      <View style={styles.tip}>
+        <Text style={styles.tipText}>👆 Start here: where do you catch the bus?</Text>
+      </View>
+    </Animated.View>
   );
 }
 
@@ -188,6 +243,11 @@ const styles = StyleSheet.create({
   divider: { height: 1, backgroundColor: colors.border, marginHorizontal: 12, marginVertical: 4 },
   field: { paddingVertical: 12, paddingHorizontal: 14, borderRadius: 14, minHeight: 68, justifyContent: 'center' },
   fieldActive: { backgroundColor: colors.primarySoft },
+  ring: { position: 'absolute', top: -2, left: -2, right: -2, bottom: -2, borderRadius: 16, borderWidth: 2.5, borderColor: colors.primary, backgroundColor: colors.primarySoft },
+  tipWrap: { alignSelf: 'flex-start', marginTop: -6, marginLeft: 36 },
+  tipArrow: { marginLeft: 22, width: 0, height: 0, borderLeftWidth: 8, borderRightWidth: 8, borderBottomWidth: 8, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderBottomColor: colors.primary },
+  tip: { backgroundColor: colors.primary, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 },
+  tipText: { color: '#fff', fontSize: 14, fontWeight: '600' },
   fieldLabel: { fontSize: 11, fontWeight: '700', color: colors.muted, letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 2 },
   input: { fontSize: 17, color: colors.text, paddingVertical: 2, outlineStyle: 'none' } as never,
   picked: { flexDirection: 'row', alignItems: 'center', gap: 8 },

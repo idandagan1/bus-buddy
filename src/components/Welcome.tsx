@@ -1,4 +1,3 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
@@ -16,10 +15,10 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { finishWelcome, useFirstRun } from '@/firstRun';
 import Svg, { Circle, Defs, Ellipse, G, Line, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
 import { gradient, PressableScale, tapFeedback } from '@/ui';
 
-const KEY = 'welcomed';
 const SKY = ['#7dd3fc', '#bae6fd', '#fef9c3'] as const;
 const EASE = Easing.inOut(Easing.sin);
 const BUS_W = 220;
@@ -30,25 +29,11 @@ const FADE_MS = 450;
 const TITLE = 'Meet Bus Buddy';
 const SUBTITLE = 'Commuting just got a lot easier.';
 
-// Shown once, the first time the app opens. People who already saved routes skip it: they know the app.
+// Shown once, the first time the app opens (see firstRun.ts).
 export function Welcome() {
-  const [show, setShow] = useState(false);
-  useEffect(() => {
-    Promise.all([AsyncStorage.getItem(KEY), AsyncStorage.getItem('savedRoutes')])
-      .then(([seen, routes]) => {
-        if (seen) return;
-        if (routes && routes !== '[]') return AsyncStorage.setItem(KEY, '1');
-        setShow(true);
-      })
-      .catch(() => {});
-  }, []);
-
-  if (!show) return null;
-  const done = () => {
-    AsyncStorage.setItem(KEY, '1').catch(() => {});
-    setShow(false);
-  };
-  return <Scene onDone={done} />;
+  const firstRun = useFirstRun();
+  if (!firstRun?.welcome) return null;
+  return <Scene onDone={finishWelcome} />;
 }
 
 function Scene({ onDone }: { onDone: () => void }) {
