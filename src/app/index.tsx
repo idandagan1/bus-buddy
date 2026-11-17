@@ -69,7 +69,11 @@ export default function Home() {
                 <Text style={styles.gearIcon}>⚙︎</Text>
               </PressableScale>
             </View>
-            {routes?.[0] ? <NextBusHero route={routes[0]} /> : <Animated.Text style={styles.title}>Where are you headed?</Animated.Text>}
+            {routes?.[0] ? (
+              <NextBusHero route={routes[0]} />
+            ) : (
+              routes && <Animated.Text style={styles.title}>{"Let's add your first route"}</Animated.Text>
+            )}
           </Hero>
         }
       >

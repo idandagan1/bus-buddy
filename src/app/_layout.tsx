@@ -4,6 +4,7 @@ import { AppState, View } from 'react-native';
 import { syncTracking } from '@/alarm';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { Toast } from '@/components/Toast';
+import { Welcome } from '@/components/Welcome';
 import { colors } from '@/ui';
 
 export default function RootLayout() {
@@ -32,6 +33,7 @@ export default function RootLayout() {
     </Stack>
     <OfflineBanner />
     <Toast />
+    <Welcome />
     </View>
   );
 }
