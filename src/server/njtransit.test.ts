@@ -1,4 +1,4 @@
-import { serviceTime, thin } from './njtransit';
+import { gateOf, serviceTime, thin } from './njtransit';
 
 describe('serviceTime', () => {
   it('turns GTFS minutes into a local time with its UTC offset', () => {
@@ -27,5 +27,21 @@ describe('thin', () => {
     expect(kept[0]).toBe(0);
     expect(kept.at(-1)).toBe(84);
     expect(new Set(kept).size).toBe(30);
+  });
+});
+
+describe('gateOf', () => {
+  it('reads the gate from a terminal stop id', () => {
+    expect(gateOf('26229-321')).toBe('321');
+    expect(gateOf('26229-200_1')).toBe('200');
+    expect(gateOf('18835-3B')).toBe('3B');
+    expect(gateOf('31250-D')).toBe('D');
+  });
+
+  it('has none for street stops or named sides', () => {
+    expect(gateOf('18124')).toBeNull();
+    expect(gateOf('26229-..')).toBeNull();
+    expect(gateOf('15034-BDWY')).toBeNull();
+    expect(gateOf('24692-Park_Ride')).toBeNull();
   });
 });

@@ -162,6 +162,13 @@ export function thin(count: number, max: number) {
   return Array.from({ length: max }, (_, k) => Math.round((k * (count - 1)) / (max - 1)));
 }
 
+// Terminal stop ids carry the gate after a dash: "26229-321" is Port Authority's gate 321, "26229-200_1" a berth
+// of gate 200, "18835-3B" Newark Penn's bay 3B. Other suffixes name a side or a lot ("BDWY", "Park_Ride", "..").
+export function gateOf(stopId: string) {
+  const gate = stopId.split('-')[1]?.split('_')[0];
+  return gate && /^(\d{1,3}[A-Z]?|[A-Z])$/.test(gate) ? gate : null;
+}
+
 const addDays = (date: string, n: number) => new Date(Date.parse(`${date}T12:00:00Z`) + n * 86400000).toISOString().slice(0, 10);
 
 export async function getTrips(origin: string, from: string, to: string, date: string): Promise<Trip[]> {
@@ -218,7 +225,7 @@ export async function getTrips(origin: string, from: string, to: string, date: s
           fromZone: routeId,
           toZone: null,
           headsign: file.headsigns[headsign],
-          gate: null,
+          gate: gateOf(stops[0]),
           departure: at(0),
           arrival: at(stops.length - 1),
           approximate: false,
