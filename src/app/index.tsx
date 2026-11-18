@@ -22,7 +22,7 @@ import { LiveStatus, toneColors } from '@/components/LiveStatus';
 import { MyAlarms } from '@/components/MyAlarms';
 import { statusKey, summarize, useTripStatuses, type LiveSummary } from '@/live';
 import { RoutePlanner } from '@/components/RoutePlanner';
-import type { SavedRoute, Stop, Trip } from '@/types';
+import type { Advisory, SavedRoute, Stop, Trip } from '@/types';
 import { colors, EASE_OUT, gradient, Hero, Page, PressableScale, PulseDot, shadow, Skeleton } from '@/ui';
 
 // Home stays calm: one short fade, no slides or staggers.
@@ -207,12 +207,16 @@ function NextBusHero({ route }: { route: SavedRoute }) {
   );
 }
 
+// Carriers often file a detour as a minor notice (NJ Transit's 166 Tenafly detour was), but it changes where
+// to wait for the bus, so the home card shows it whatever its severity.
+const isDetour = (a: Advisory) => /detour/i.test(`${a.heading} ${a.paragraphs.join(' ')}`);
+
 function RouteCard({ route, onRemove }: { route: SavedRoute; onRemove: () => void }) {
   const [reversed, setReversed] = useState(false);
   const from = reversed ? route.to : route.from;
   const to = reversed ? route.from : route.to;
   const { trips, error, offline, cachedAt, reload } = useTrips(from, to);
-  const alerts = useAdvisories(trips).filter((a) => a.severity === 'high');
+  const alerts = useAdvisories(trips).filter((a) => a.severity === 'high' || isDetour(a));
   const now = useNow();
   const statuses = useTripStatuses(trips, now);
   const liveOf = (t: Trip) => summarize(statuses[statusKey(t)], now);
@@ -243,7 +247,7 @@ function RouteCard({ route, onRemove }: { route: SavedRoute; onRemove: () => voi
 
       {alerts.map((a) => (
         <Animated.View key={a.id} entering={CALM} style={[styles.alert, { backgroundColor: severityStyle.high.soft }]}>
-          <Text style={[styles.alertText, { color: severityStyle.high.color }]} numberOfLines={1}>⚠️  {a.heading}</Text>
+          <Text style={[styles.alertText, { color: severityStyle.high.color }]} numberOfLines={1}>{isDetour(a) ? '↪️' : '⚠️'}  {a.heading}</Text>
         </Animated.View>
       ))}
 
