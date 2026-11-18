@@ -12,7 +12,7 @@ export const severityStyle = {
 
 const rank = { high: 0, low: 1, info: 2 };
 
-// Coach USA service alerts, most severe first; tap one to expand.
+// Service alerts, most severe first; tap one to expand it to the full heading and text.
 export function Advisories({ advisories }: { advisories: Advisory[] }) {
   const [open, setOpen] = useState<string | null>(null);
   if (!advisories.length) return null;
@@ -28,7 +28,7 @@ export function Advisories({ advisories }: { advisories: Advisory[] }) {
             <PressableScale onPress={() => setOpen(expanded ? null : a.id)} style={[styles.card, shadow, { backgroundColor: s.soft, borderLeftColor: s.color }]}>
               <View style={styles.row}>
                 <Text style={styles.icon}>{s.icon}</Text>
-                <Text style={[styles.heading, { color: s.color }]} numberOfLines={2}>{a.heading}</Text>
+                <Text style={[styles.heading, { color: s.color }]} numberOfLines={expanded ? undefined : 2}>{a.heading}</Text>
                 <ToggleIcon open={expanded} color={s.color} />
               </View>
               {!!a.paragraphs[0] && (
