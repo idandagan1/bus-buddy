@@ -39,22 +39,40 @@ async function get<T>(path: string, params: Record<string, string>): Promise<T> 
   return res.json();
 }
 
+const toStop = (r: RawStop): Stop => ({
+  id: r.id,
+  name: r.stop.name,
+  town: r.place.name,
+  state: r.place.state.code,
+  latitude: Number(r.location.latitude),
+  longitude: Number(r.location.longitude),
+});
+
+// Every pickup stop. It rarely changes, and NJ Transit stops take their towns from it on every search, so a
+// server instance keeps it for an hour.
+const PICKUPS_TTL_MS = 60 * 60 * 1000;
+let pickups: { at: number; raw: Promise<RawStop[]>; stops: Promise<Stop[]> } | null = null;
+function getPickups() {
+  if (!pickups || Date.now() - pickups.at > PICKUPS_TTL_MS) {
+    const raw = get<{ results: RawStop[] }>('/journey/location', { type: 'pickup' }).then((r) => r.results);
+    raw.catch(() => (pickups = null));
+    pickups = { at: Date.now(), raw, stops: raw.then((r) => r.map(toStop)) };
+  }
+  return pickups;
+}
+
+// The same array until the hour is up, so callers can cache what they derive from it.
+export const allStops = () => getPickups().stops;
+
 // The upstream `query` param doesn't filter (coachusa.com filters in the browser), so we filter here.
 export async function searchStops(query: string, origin?: string): Promise<Stop[]> {
-  const { results } = await get<{ results: RawStop[] }>('/journey/location', origin ? { origin } : { type: 'pickup' });
+  const results = origin ? (await get<{ results: RawStop[] }>('/journey/location', { origin })).results : await getPickups().raw;
   const words = query.toLowerCase().split(/\s+/).filter(Boolean);
   const matches = results.filter((r) => {
     const text = `${r.stop.name} ${r.place.name} ${r.place.state.code}`.toLowerCase();
     return words.every((w) => text.includes(w));
   });
-  return matches.map((r) => ({
-    id: r.id,
-    name: r.stop.name,
-    town: r.place.name,
-    state: r.place.state.code,
-    latitude: Number(r.location.latitude),
-    longitude: Number(r.location.longitude),
-  }));
+  return matches.map(toStop);
 }
 
 const callTime = (c: RawCall) => (c.departure ?? c.arrival)!.time;

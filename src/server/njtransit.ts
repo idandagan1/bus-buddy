@@ -4,6 +4,7 @@ import GtfsRealtimeBindings from 'gtfs-realtime-bindings';
 import type Long from 'long';
 import { distanceMeters } from '@/geo';
 import { entityFor, indexFeed, type IndexedFeed } from './gtfsrt';
+import type { Town } from './towns';
 import type { Advisory, Stop, Trip, TripStatus } from '@/types';
 
 export const ID_PREFIX = 'njt:';
@@ -58,11 +59,11 @@ function loadRoute(origin: string, id: string) {
 const stationId = (id: string) => id.slice(ID_PREFIX.length);
 
 // `code` is the stop number to show: the one searched for, else the station's first.
-const toStop = (idx: Index, s: Station, only: Set<string> | null, code = s[6]?.split(' ')[0]): Stop => ({
+const toStop = (idx: Index, s: Station, only: Set<string> | null, town: Town | null, code = s[6]?.split(' ')[0]): Stop => ({
   id: ID_PREFIX + s[0],
   name: s[1],
-  town: '',
-  state: '',
+  town: town?.town ?? '',
+  state: town?.state ?? '',
   latitude: s[2],
   longitude: s[3],
   carrier: CARRIER_CODE,
@@ -72,8 +73,10 @@ const toStop = (idx: Index, s: Station, only: Set<string> | null, code = s[6]?.s
   ),
 });
 
-export async function searchStops(origin: string, query: string, from?: string): Promise<Stop[]> {
+// The feed has no towns; `townOf` names a station's town (see towns.ts), so "Tenafly" finds its stops too.
+export async function searchStops(origin: string, query: string, from?: string, townOf?: (lat: number, lon: number) => Town | null): Promise<Stop[]> {
   const idx = await loadIndex(origin);
+  const town = (s: Station) => townOf?.(s[2], s[3]) ?? null;
   const { stations } = idx;
   const words = query.toLowerCase().split(/\s+/).filter(Boolean);
   let candidates = stations;
@@ -94,12 +97,19 @@ export async function searchStops(origin: string, query: string, from?: string):
       return code ? [{ s, code }] : [];
     });
     hits.sort((a, b) => Number(b.code === n) - Number(a.code === n) || a.code.length - b.code.length || a.code.localeCompare(b.code));
-    return hits.slice(0, MAX_RESULTS).map(({ s, code }) => toStop(idx, s, routes, code));
+    return hits.slice(0, MAX_RESULTS).map(({ s, code }) => toStop(idx, s, routes, town(s), code));
   }
   return candidates
-    .filter((s) => words.every((w) => s[1].toLowerCase().includes(w)))
+    .flatMap((s) => {
+      const name = s[1].toLowerCase();
+      // Only stations the name alone doesn't match need their town looked up.
+      if (words.every((w) => name.includes(w))) return [{ s, t: town(s) }];
+      const t = town(s);
+      const text = t ? `${name} ${t.town} ${t.state}`.toLowerCase() : name;
+      return words.every((w) => text.includes(w)) ? [{ s, t }] : [];
+    })
     .slice(0, MAX_RESULTS)
-    .map((s) => toStop(idx, s, routes));
+    .map(({ s, t }) => toStop(idx, s, routes, t));
 }
 
 // GTFS times count from "noon minus 12 hours" on the service day, which keeps them right across DST changes.

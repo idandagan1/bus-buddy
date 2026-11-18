@@ -5,8 +5,10 @@ export type Stop = {
   state: string;
   latitude: number;
   longitude: number;
-  // Set for NJ Transit stops (which have no town); Coach USA stops leave it out.
+  // Set for NJ Transit stops; Coach USA stops leave it out.
   carrier?: 'NJT';
+  // An NJ Transit search result on the same corner as the Coach USA stop listed just above it.
+  sameCorner?: boolean;
   // NJ Transit's stop number, as on the sign at the stop.
   code?: string;
   // NJ Transit route numbers serving the stop (for a destination, only the ones also serving the origin).

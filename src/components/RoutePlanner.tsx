@@ -164,11 +164,13 @@ function TypedText({ text, style }: { text: string; style: object }) {
   );
 }
 
-// NJ Transit stops have no town; their stop number (on the sign at the stop) tells them apart instead.
+// NJ Transit stops show their stop number (on the sign at the stop) and town when the server found one.
 // Their route numbers tell Port Authority's NJ Transit gates from Coach USA's (166 vs 20, say).
 const stopPlace = (s: Stop) => {
   if (s.carrier !== 'NJT') return `${s.town}, ${s.state}`;
-  const place = s.code ? `Stop #${s.code}` : 'NJ Transit bus';
+  const place = [s.sameCorner && 'Same corner as above', s.town && `${s.town}, ${s.state}`, s.code ? `Stop #${s.code}` : 'NJ Transit bus']
+    .filter(Boolean)
+    .join(' · ');
   return s.routes?.length ? `${place} · ${s.routes.length === 1 ? 'Bus' : 'Buses'} ${s.routes.join(', ')}` : place;
 };
 

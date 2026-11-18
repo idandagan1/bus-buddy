@@ -4,14 +4,28 @@
 import type { Advisory, Stop, Trip, TripStatus } from '@/types';
 import * as coachusa from './coachusa';
 import * as njtransit from './njtransit';
+import { groupCorners, townFinder } from './towns';
 
 const isNjt = (id: string) => id.startsWith(njtransit.ID_PREFIX);
 
+// NJ Transit stops take their towns from Coach USA's (towns.ts); if Coach USA is down they just go without.
+const finders = new WeakMap<Stop[], ReturnType<typeof townFinder>>();
+const njtTowns = () =>
+  coachusa
+    .allStops()
+    .then((stops) => {
+      let find = finders.get(stops);
+      if (!find) finders.set(stops, (find = townFinder(stops)));
+      return find;
+    })
+    .catch(() => undefined);
+
 export async function searchStops(site: string, query: string, origin?: string): Promise<Stop[]> {
-  if (origin) return isNjt(origin) ? njtransit.searchStops(site, query, origin) : coachusa.searchStops(query, origin);
+  if (origin) return isNjt(origin) ? njtransit.searchStops(site, query, origin, await njtTowns()) : coachusa.searchStops(query, origin);
   // NJ Transit is optional: if its files are unavailable, Coach USA results still come back.
-  const [coach, njt] = await Promise.all([coachusa.searchStops(query), njtransit.searchStops(site, query).catch(() => [])]);
-  return [...coach, ...njt];
+  const [coach, townOf] = await Promise.all([coachusa.searchStops(query), njtTowns()]);
+  const njt = await njtransit.searchStops(site, query, undefined, townOf).catch(() => []);
+  return groupCorners(coach, njt);
 }
 
 // A route's two stops always belong to the same carrier: stop search only offers destinations reachable from the origin.
