@@ -3,6 +3,7 @@
 import GtfsRealtimeBindings from 'gtfs-realtime-bindings';
 import type Long from 'long';
 import { distanceMeters } from '@/geo';
+import { entityFor, indexFeed, type IndexedFeed } from './gtfsrt';
 import type { Advisory, Stop, Trip, TripStatus } from '@/types';
 
 export const ID_PREFIX = 'njt:';
@@ -277,9 +278,10 @@ function getToken() {
 }
 
 type Feed = GtfsRealtimeBindings.transit_realtime.FeedMessage;
-const feeds = new Map<string, { at: number; feed: Promise<Feed> }>();
+const feeds = new Map<string, { at: number; feed: Promise<Uint8Array> }>();
 
-function getFeed(name: 'getTripUpdates' | 'getVehiclePositions' | 'getAlerts', ttl = FEED_TTL_MS) {
+// The raw bytes of a feed, shared across requests for up to `ttl`.
+function getFeedBytes(name: 'getTripUpdates' | 'getVehiclePositions' | 'getAlerts', ttl = FEED_TTL_MS) {
   const cached = feeds.get(name);
   if (cached && Date.now() - cached.at < ttl) return cached.feed;
   const feed = (async () => {
@@ -290,26 +292,29 @@ function getFeed(name: 'getTripUpdates' | 'getVehiclePositions' | 'getAlerts', t
       res = await post(name, { token: await getToken() });
     }
     if (!res.ok) throw new Error(`njtransit ${name} → ${res.status}`);
-    return GtfsRealtimeBindings.transit_realtime.FeedMessage.decode(new Uint8Array(await res.arrayBuffer()));
+    return new Uint8Array(await res.arrayBuffer());
   })();
   feed.catch(() => feeds.delete(name));
   feeds.set(name, { at: Date.now(), feed });
   return feed;
 }
 
-// Per decoded feed, its entities by trip id, so each status lookup is a map hit rather than a scan.
-const byTrip = new WeakMap<Feed, Map<string, GtfsRealtimeBindings.transit_realtime.IFeedEntity>>();
-function entityFor(feed: Feed, tripId: string) {
-  let map = byTrip.get(feed);
-  if (!map) {
-    map = new Map();
-    for (const e of feed.entity) {
-      const id = (e.tripUpdate ?? e.vehicle)?.trip?.tripId;
-      if (id) map.set(id, e);
-    }
-    byTrip.set(feed, map);
-  }
-  return map.get(tripId);
+// Trip updates and vehicle positions are indexed, not decoded (see gtfsrt.ts); once per download.
+const indexed = new WeakMap<Uint8Array, IndexedFeed>();
+async function getIndexedFeed(name: 'getTripUpdates' | 'getVehiclePositions') {
+  const bytes = await getFeedBytes(name);
+  let feed = indexed.get(bytes);
+  if (!feed) indexed.set(bytes, (feed = indexFeed(bytes)));
+  return feed;
+}
+
+// Alerts are a small feed that's read whole.
+const decodedAlerts = new WeakMap<Uint8Array, Feed>();
+async function getAlertsFeed() {
+  const bytes = await getFeedBytes('getAlerts', ALERTS_TTL_MS);
+  let feed = decodedAlerts.get(bytes);
+  if (!feed) decodedAlerts.set(bytes, (feed = GtfsRealtimeBindings.transit_realtime.FeedMessage.decode(bytes)));
+  return feed;
 }
 
 const { ScheduleRelationship: TripRel } = GtfsRealtimeBindings.transit_realtime.TripDescriptor;
@@ -320,7 +325,7 @@ const iso = (seconds: number | Long | null | undefined) => (seconds ? new Date(N
 // so the live times are for the rider's own stops, not the whole trip's.
 export async function getStatus(site: string, journeyId: string, date: string): Promise<TripStatus | null> {
   const [routeId, tripId, fromIdx, toIdx] = journeyId.slice(ID_PREFIX.length).split(':');
-  const [file, updates, vehicles] = await Promise.all([loadRoute(site, routeId), getFeed('getTripUpdates'), getFeed('getVehiclePositions').catch(() => null)]);
+  const [file, updates, vehicles] = await Promise.all([loadRoute(site, routeId), getIndexedFeed('getTripUpdates'), getIndexedFeed('getVehiclePositions').catch(() => null)]);
   const trip = file.trips.find((t) => t[0] === tripId);
   const update = entityFor(updates, tripId)?.tripUpdate;
   if (!trip || !update) return null;
@@ -361,14 +366,14 @@ export async function getStatus(site: string, journeyId: string, date: string): 
     departure: from.time,
     arrival: to.time,
     position: p ? { latitude: p.latitude, longitude: p.longitude, speedMph: p.speed ? p.speed * 2.23694 : null, updated: iso(vehicle.timestamp) ?? null } : null,
-    retrieved: iso(updates.header.timestamp) ?? null,
+    retrieved: iso(updates.header?.timestamp) ?? null,
   };
 }
 
 // Active alerts for one route. Stop-only notices (each terminal's greeting) aren't about a trip, so they're skipped.
 export async function getAdvisories(routeId: string | null): Promise<Advisory[]> {
   if (!routeId) return [];
-  const feed = await getFeed('getAlerts', ALERTS_TTL_MS);
+  const feed = await getAlertsFeed();
   const now = Date.now() / 1000;
   const seen = new Set<string>();
   const out: Advisory[] = [];
