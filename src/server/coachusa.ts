@@ -32,7 +32,9 @@ type RawTrip = {
 async function get<T>(path: string, params: Record<string, string>): Promise<T> {
   const qs = new URLSearchParams(params);
   if (path === '/journey/location') CARRIERS.forEach((c) => qs.append('carrierCode', c));
-  const res = await fetch(`${BASE}${path}?${qs}`, { headers: HEADERS });
+  const res = await fetch(`${BASE}${path}?${qs}`, { headers: HEADERS }).catch((e: Error) => {
+    throw new Error(`coachusa ${path} → ${e.message}`);
+  });
   if (!res.ok) throw new Error(`coachusa ${path} → ${res.status}`);
   return res.json();
 }

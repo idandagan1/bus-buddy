@@ -33,26 +33,39 @@ export class OfflineError extends Error {
 
 // A stalled request (weak cellular, a slow upstream) would otherwise keep screens loading indefinitely.
 const REQUEST_TIMEOUT_MS = 15000;
+// Server errors are often momentary (the host's CPU limit, a blip upstream), so they get one quiet retry.
+const RETRY_DELAY_MS = 1000;
+const SOURCE_NAMES: Record<string, string> = { coachusa: 'Coach USA', njtransit: 'NJ Transit' };
 
-async function getJson<T>(url: string, failure: string): Promise<T> {
-  const abort = new AbortController();
-  const timer = setTimeout(() => abort.abort(), REQUEST_TIMEOUT_MS);
-  let res: Response;
-  try {
-    res = await fetch(url, { signal: abort.signal });
-  } catch {
-    throw abort.signal.aborted ? new Error(`${failure} (timed out)`) : new OfflineError();
-  } finally {
-    clearTimeout(timer);
+// `what` names the data for the error message: "the schedule", "stops".
+async function getJson<T>(url: string, what: string): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    const abort = new AbortController();
+    const timer = setTimeout(() => abort.abort(), REQUEST_TIMEOUT_MS);
+    let res: Response;
+    try {
+      res = await fetch(url, { signal: abort.signal });
+    } catch {
+      throw abort.signal.aborted ? new Error(`Couldn't load ${what}: the request timed out.`) : new OfflineError();
+    } finally {
+      clearTimeout(timer);
+    }
+    if (res.ok) return res.json();
+    if (res.status >= 500 && attempt === 0) {
+      await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
+      continue;
+    }
+    // API routes say which upstream failed; anything else (no JSON body) is our own server.
+    const body: { source?: string } | null = await res.json().catch(() => null);
+    const name = body?.source && SOURCE_NAMES[body.source];
+    throw new Error(name ? `Couldn't load ${what}: ${name} isn't responding.` : `Couldn't load ${what}: the Bus Buddy server had a hiccup.`);
   }
-  if (!res.ok) throw new Error(failure);
-  return res.json();
 }
 
 export function searchStops(q: string, origin?: string): Promise<Stop[]> {
   const qs = new URLSearchParams({ q });
   if (origin) qs.set('origin', origin);
-  return getJson(`/api/stops?${qs}`, "Couldn't load stops from Coach USA");
+  return getJson(`/api/stops?${qs}`, 'stops');
 }
 
 const tripsCacheKey = (from: string, to: string) => `trips:${from}:${to}`;
@@ -61,7 +74,7 @@ type CachedTrips = { savedAt: number; trips: Trip[] };
 export async function fetchTrips(from: string, to: string): Promise<Trip[]> {
   const trips = await getJson<Trip[]>(
     `/api/trips?${new URLSearchParams({ from, to, date: todayISO() })}`,
-    "Couldn't load the schedule from Coach USA",
+    'the schedule',
   );
   const cached: CachedTrips = { savedAt: Date.now(), trips };
   AsyncStorage.setItem(tripsCacheKey(from, to), JSON.stringify(cached)).catch(() => {});

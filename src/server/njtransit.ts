@@ -29,7 +29,9 @@ let index: Promise<Index> | null = null;
 const routeFiles = new Map<string, Promise<RouteFile>>();
 
 async function getJson<T>(origin: string, path: string): Promise<T> {
-  const res = await fetch(`${origin}/njt/${path}`);
+  const res = await fetch(`${origin}/njt/${path}`).catch((e: Error) => {
+    throw new Error(`njtransit ${path} → ${e.message}`);
+  });
   if (!res.ok) throw new Error(`njtransit ${path} → ${res.status}`);
   return res.json();
 }

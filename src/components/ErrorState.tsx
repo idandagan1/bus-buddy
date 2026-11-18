@@ -3,7 +3,7 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 import { formatTime } from '@/api';
 import { colors, PressableScale } from '@/ui';
 
-// Shown when there's nothing to display: no connection or Coach USA failed, and nothing saved.
+// Shown when there's nothing to display: no connection or a failed request, and nothing saved.
 export function ErrorState({ offline, message, onRetry, compact }: { offline: boolean; message?: string | null; onRetry: () => void; compact?: boolean }) {
   return (
     <Animated.View entering={FadeIn.duration(250)} style={[styles.box, compact && styles.compact]}>
@@ -12,7 +12,7 @@ export function ErrorState({ offline, message, onRetry, compact }: { offline: bo
       <Text style={styles.body}>
         {offline
           ? "Connect to Wi-Fi or mobile data. We'll refresh automatically when you're back online."
-          : (message ?? 'Coach USA is not responding right now.') + ' Try again in a moment.'}
+          : (message ?? 'The server is not responding right now.') + ' Try again in a moment.'}
       </Text>
       <PressableScale onPress={onRetry} style={styles.retry}>
         <Text style={styles.retryText}>Try again</Text>
