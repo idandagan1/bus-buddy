@@ -29,14 +29,27 @@ type RawTrip = {
   stops: RawCall[];
 };
 
+// Coach USA's API has short blips at rush hour; one quick retry rides most of them out.
+const RETRY_MS = 300;
+const retryable = (status: number) => status >= 500 || status === 429;
+
 async function get<T>(path: string, params: Record<string, string>): Promise<T> {
   const qs = new URLSearchParams(params);
   if (path === '/journey/location') CARRIERS.forEach((c) => qs.append('carrierCode', c));
-  const res = await fetch(`${BASE}${path}?${qs}`, { headers: HEADERS }).catch((e: Error) => {
-    throw new Error(`coachusa ${path} → ${e.message}`);
-  });
-  if (!res.ok) throw new Error(`coachusa ${path} → ${res.status}`);
-  return res.json();
+  for (let attempt = 0; ; attempt++) {
+    const last = attempt > 0;
+    let res: Response;
+    try {
+      res = await fetch(`${BASE}${path}?${qs}`, { headers: HEADERS });
+    } catch (e) {
+      if (last) throw new Error(`coachusa ${path} → ${(e as Error).message}`);
+      await new Promise((r) => setTimeout(r, RETRY_MS));
+      continue;
+    }
+    if (res.ok) return res.json();
+    if (last || !retryable(res.status)) throw new Error(`coachusa ${path} → ${res.status}`);
+    await new Promise((r) => setTimeout(r, RETRY_MS));
+  }
 }
 
 const toStop = (r: RawStop): Stop => ({
@@ -78,7 +91,30 @@ export async function searchStops(query: string, origin?: string): Promise<Stop[
 const callTime = (c: RawCall) => (c.departure ?? c.arrival)!.time;
 const serviceDay = (iso: string) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' }).format(new Date(iso));
 
+// Schedules hardly change through the day, so a server instance keeps each answer: reused for a few minutes,
+// and if Coach USA fails, served for hours rather than an error (live status still comes separately).
+const TRIPS_FRESH_MS = 5 * 60 * 1000;
+const TRIPS_FALLBACK_MS = 6 * 60 * 60 * 1000;
+const TRIPS_CACHED = 500;
+const tripsCache = new Map<string, { at: number; trips: Trip[] }>();
+
 export async function getTrips(origin: string, destination: string, date: string): Promise<Trip[]> {
+  const key = `${origin}>${destination}@${date}`;
+  const hit = tripsCache.get(key);
+  if (hit && Date.now() - hit.at < TRIPS_FRESH_MS) return hit.trips;
+  try {
+    const trips = await fetchTrips(origin, destination, date);
+    tripsCache.delete(key);
+    tripsCache.set(key, { at: Date.now(), trips });
+    if (tripsCache.size > TRIPS_CACHED) tripsCache.delete(tripsCache.keys().next().value!);
+    return trips;
+  } catch (e) {
+    if (hit && Date.now() - hit.at < TRIPS_FALLBACK_MS) return hit.trips;
+    throw e;
+  }
+}
+
+async function fetchTrips(origin: string, destination: string, date: string): Promise<Trip[]> {
   const { results } = await get<{ results: RawTrip[] }>('/journey', { origin, destination, dateFrom: date });
   return results
     .map((t) => ({
