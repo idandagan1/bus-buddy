@@ -112,6 +112,31 @@ export async function searchStops(origin: string, query: string, from?: string, 
     .map(({ s, t }) => toStop(idx, s, routes, t));
 }
 
+// Stations within maxM of a point, nearest first (for pairing a Coach USA stop with NJ Transit's on its corner).
+export async function stationsNear(origin: string, latitude: number, longitude: number, maxM: number): Promise<Stop[]> {
+  const idx = await loadIndex(origin);
+  return idx.stations
+    .map((s) => ({ s, m: distanceMeters({ latitude, longitude }, { latitude: s[2], longitude: s[3] }) }))
+    .filter(({ m }) => m <= maxM)
+    .sort((a, b) => a.m - b.m)
+    .map(({ s }) => toStop(idx, s, null, null));
+}
+
+// The station nearest a point, within maxM, that a route from `from` reaches; its routes are the shared ones.
+export async function reachableNear(origin: string, from: string, latitude: number, longitude: number, maxM: number): Promise<Stop | null> {
+  const idx = await loadIndex(origin);
+  const start = idx.stations.find((s) => s[0] === stationId(from));
+  if (!start) return null;
+  const served = new Set(start[5].split(' '));
+  let best: { s: Station; m: number } | null = null;
+  for (const s of idx.stations) {
+    if (s === start || !s[5].split(' ').some((r) => served.has(r))) continue;
+    const m = distanceMeters({ latitude, longitude }, { latitude: s[2], longitude: s[3] });
+    if (m <= maxM && (!best || m < best.m)) best = { s, m };
+  }
+  return best && toStop(idx, best.s, served, null);
+}
+
 // GTFS times count from "noon minus 12 hours" on the service day, which keeps them right across DST changes.
 // Offsets only change on the hour, so one lookup per hour covers every stop time in a request; the server's
 // CPU budget per request is small, and formatting thousands of times is what used to blow it.

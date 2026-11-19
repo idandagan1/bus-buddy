@@ -1,4 +1,4 @@
-import { chosenTrips, routeChoices, toggleRoute } from './routeFilter';
+import { chosenTrips, routeChoices, routeLabel, toggleRoute } from './routeFilter';
 import type { Trip } from './types';
 
 const trip = (route: string, departure: string) => ({ id: `${route}-${departure}`, route, departure }) as Trip;
@@ -47,5 +47,24 @@ describe('toggleRoute', () => {
     expect(toggleRoute(['166X'], '166X', choices)).toBeUndefined();
     expect(toggleRoute(['166T', '166X'], '166', choices)).toBeUndefined();
     expect(toggleRoute(['166X'], null, choices)).toBeUndefined();
+  });
+});
+
+describe('routeLabel', () => {
+  const routes = ['20', '166', '166T', '166X'];
+
+  it('spells out NJ Transit’s express and local buses', () => {
+    expect(routeLabel('166X', 'NJT', routes)).toEqual({ label: '166X Express', kind: 'express' });
+    expect(routeLabel('166T', 'NJT', routes)).toEqual({ label: '166T Turnpike', kind: 'turnpike' });
+    expect(routeLabel('166', 'NJT', routes)).toEqual({ label: '166 Local', kind: 'local' });
+  });
+
+  it('only calls a bus local when an express of it is showing', () => {
+    expect(routeLabel('166', 'NJT', ['166'])).toEqual({ label: '166', kind: 'plain' });
+    expect(routeLabel('16', 'NJT', ['16', '166X'])).toEqual({ label: '16', kind: 'plain' });
+  });
+
+  it('marks Coach USA routes as Coach', () => {
+    expect(routeLabel('20', 'RCK', routes)).toEqual({ label: 'Coach 20', kind: 'coach' });
   });
 });

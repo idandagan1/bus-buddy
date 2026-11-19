@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useOnline } from '@/network';
-import type { Advisory, SavedRoute, Stop, Trip } from '@/types';
+import type { Advisory, Leg, SavedRoute, Stop, Trip } from '@/types';
 
 const TZ = 'America/New_York';
 
@@ -68,6 +68,12 @@ export function searchStops(q: string, origin?: string): Promise<Stop[]> {
   return getJson(`/api/stops?${qs}`, 'stops');
 }
 
+// The other carrier's stops at the same two places as a route, or null when it has none there.
+export function findPartner(from: Stop, to: Stop): Promise<Leg | null> {
+  const place = (s: Stop) => `${s.id},${s.latitude},${s.longitude}`;
+  return getJson(`/api/partner?${new URLSearchParams({ from: place(from), to: place(to) })}`, 'nearby stops');
+}
+
 const tripsCacheKey = (from: string, to: string) => `trips:${from}:${to}`;
 type CachedTrips = { savedAt: number; trips: Trip[] };
 
@@ -100,15 +106,19 @@ type TripsState = {
 };
 
 // Cached schedule first, then fresh data; refetches every few minutes and when the connection returns.
-export function useTrips(from: Stop, to: Stop) {
-  const key = tripsCacheKey(from.id, to.id);
+// With no stops (a route's other carrier, when it has none) it loads nothing.
+export function useTrips(from: Stop | null, to: Stop | null) {
+  const key = from && to ? tripsCacheKey(from.id, to.id) : '';
   const online = useOnline();
   // Tagged with the key so switching direction never shows the other direction's trips.
   const [state, setState] = useState<TripsState>({ key, trips: null, error: null, offline: false, cachedAt: null });
 
+  const fromId = from?.id;
+  const toId = to?.id;
   const load = useCallback(async () => {
+    if (!fromId || !toId) return;
     try {
-      const trips = await fetchTrips(from.id, to.id);
+      const trips = await fetchTrips(fromId, toId);
       setState({ key, trips, error: null, offline: false, cachedAt: null });
     } catch (e) {
       setState((s) => ({
@@ -118,9 +128,10 @@ export function useTrips(from: Stop, to: Stop) {
         offline: e instanceof OfflineError,
       }));
     }
-  }, [from.id, to.id, key]);
+  }, [fromId, toId, key]);
 
   useEffect(() => {
+    if (!key) return;
     readCachedTrips(key).then(
       (cached) =>
         cached &&
@@ -134,9 +145,9 @@ export function useTrips(from: Stop, to: Stop) {
   // Refetch the moment the connection comes back.
   const wasOnline = useRef(online);
   useEffect(() => {
-    if (online && wasOnline.current === false) load();
+    if (key && online && wasOnline.current === false) load();
     wasOnline.current = online;
-  }, [online, load]);
+  }, [key, online, load]);
 
   const current = state.key === key ? state : { trips: null, error: null, offline: false, cachedAt: null };
   return { ...current, offline: current.offline || online === false, reload: load };

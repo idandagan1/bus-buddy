@@ -18,8 +18,12 @@ export default function AddRoute() {
   async function save(from: Stop, to: Stop) {
     const routes = await loadRoutes();
     const next = editing
-      ? // A route choice (166X) only means something between the same stops.
-        routes.map((r) => (r.id === editing.id ? { ...r, from, to, only: r.from.id === from.id && r.to.id === to.id ? r.only : undefined } : r))
+      ? // A route choice (166X) and another carrier's buses only mean something between the same stops.
+        routes.map((r) => {
+          if (r.id !== editing.id) return r;
+          const same = r.from.id === from.id && r.to.id === to.id;
+          return { ...r, from, to, only: same ? r.only : undefined, also: same ? r.also : undefined };
+        })
       : [...routes, { id: String(Date.now()), from, to }];
     await saveRoutes(next);
     if (router.canGoBack()) router.back();

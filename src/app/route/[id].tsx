@@ -4,17 +4,19 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { wakeBefore } from '@/wake';
 import Animated, { FadeInDown, FadeInLeft, FadeInRight, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
-import { dayKey, formatCountdown, formatDay, formatTime, loadRoutes, saveRoutes, useAdvisories, useNow, useTrips } from '@/api';
+import { dayKey, formatCountdown, formatDay, formatTime, loadRoutes, saveRoutes, useAdvisories, useNow } from '@/api';
 import { Advisories } from '@/components/Advisories';
 import { CarrierTag } from '@/components/CarrierTag';
 import { GateBadge } from '@/components/GateBadge';
 import { ErrorState, StaleNote } from '@/components/ErrorState';
 import { LiveStatus } from '@/components/LiveStatus';
 import { statusKey, summarize, useTripStatuses, type LiveSummary } from '@/live';
-import type { SavedRoute, Stop, Trip } from '@/types';
+import type { SavedRoute, Trip } from '@/types';
 import { DayTabs } from '@/components/DayTabs';
 import { RouteChips } from '@/components/RouteChips';
-import { chosenTrips } from '@/routeFilter';
+import { RouteBadge } from '@/components/RouteBadge';
+import { chosenTrips, routeChoices } from '@/routeFilter';
+import { useRouteTrips } from '@/routeTrips';
 import { Collapsible, colors, EASE_OUT, gradient, Hero, Page, PressableScale, PulseDot, shadow, Skeleton, ToggleIcon } from '@/ui';
 
 export default function RouteScreen() {
@@ -39,8 +41,8 @@ export default function RouteScreen() {
       {route ? (
         <Schedule
           mapLink={{ route: route.id, reversed: isReversed ? '1' : '0' }}
-          from={isReversed ? route.to : route.from}
-          to={isReversed ? route.from : route.to}
+          route={route}
+          reversed={isReversed}
           onSwap={() => router.setParams({ reversed: isReversed ? '0' : '1' })}
           only={route.only}
           onChoose={choose}
@@ -52,11 +54,15 @@ export default function RouteScreen() {
   );
 }
 
-function Schedule(props: { from: Stop; to: Stop; onSwap: () => void; mapLink: MapLink; only?: string[]; onChoose: (only: string[] | undefined) => void }) {
-  const { from, to, onSwap, mapLink, only, onChoose } = props;
-  const { trips: all, error, offline, cachedAt, reload } = useTrips(from, to);
+function Schedule(props: { route: SavedRoute; reversed: boolean; onSwap: () => void; mapLink: MapLink; only?: string[]; onChoose: (only: string[] | undefined) => void }) {
+  const { route, reversed, onSwap, mapLink, only, onChoose } = props;
+  const from = reversed ? route.to : route.from;
+  const to = reversed ? route.from : route.to;
+  const { trips: all, error, offline, cachedAt, reload, legs } = useRouteTrips(route, reversed);
+  const routes = routeChoices(all, only);
   const trips = useMemo(() => chosenTrips(all, { only }), [all, only]);
-  const advisories = useAdvisories(trips);
+  // Each carrier's alerts come from its own trips.
+  const advisories = [...useAdvisories(legs[0]), ...useAdvisories(legs[1])];
   const now = useNow();
   const statuses = useTripStatuses(trips, now);
   const hasLive = Object.values(statuses).some((st) => summarize(st, now));
@@ -116,6 +122,7 @@ function Schedule(props: { from: Stop; to: Stop; onSwap: () => void; mapLink: Ma
               <Text style={styles.heroTo} numberOfLines={1}>→ {to.name}</Text>
               <View style={styles.heroCarrier}>
                 <CarrierTag stop={from} onDark />
+                {route.also && <CarrierTag stop={reversed ? route.also.to : route.also.from} onDark />}
                 {Platform.OS !== 'android' && mapTrip && (
                   <PressableScale onPress={() => router.push({ pathname: '/map', params: { ...mapLink, trip: mapTrip.id } })} hitSlop={8} style={styles.heroMap}>
                     <Text style={styles.heroMapText}>🗺  Map</Text>
@@ -173,7 +180,7 @@ function Schedule(props: { from: Stop; to: Stop; onSwap: () => void; mapLink: Ma
         {visible.map((t, i) => (
           // Only the first screenful staggers in; rows loaded on scroll appear at once.
           <Animated.View key={t.id} entering={enter.delay(i < 10 ? i * 35 : 0).duration(420).easing(EASE_OUT)}>
-            <TripRow mapLink={mapLink} trip={t} now={now} live={summarize(statuses[statusKey(t)], now)} isNext={t.id === next?.id} expanded={expanded === t.id} onToggle={() => setExpanded(expanded === t.id ? null : t.id)} />
+            <TripRow mapLink={mapLink} trip={t} routes={routes} now={now} live={summarize(statuses[statusKey(t)], now)} isNext={t.id === next?.id} expanded={expanded === t.id} onToggle={() => setExpanded(expanded === t.id ? null : t.id)} />
           </Animated.View>
         ))}
       </View>
@@ -185,7 +192,7 @@ function Schedule(props: { from: Stop; to: Stop; onSwap: () => void; mapLink: Ma
       )}
 
       <Text style={styles.footnote}>
-        Times from {from.carrier === 'NJT' ? 'NJ Transit' : 'Coach USA'} · live status updates every 15 seconds
+        Times from {route.also ? 'Coach USA and NJ Transit' : from.carrier === 'NJT' ? 'NJ Transit' : 'Coach USA'} · live status updates every 15 seconds
       </Text>
     </Page>
   );
@@ -201,7 +208,7 @@ const TRIPS_BEFORE_NEXT = 2;
 const hasArrived = (trip: Trip, live: LiveSummary | null, now: number) =>
   new Date(live?.arrival ?? trip.arrival).getTime() + (live ? 0 : ARRIVAL_GRACE_MS) < now;
 
-function TripRow(props: { mapLink: MapLink; trip: Trip; now: number; live: LiveSummary | null; isNext: boolean; expanded: boolean; onToggle: () => void }) {
+function TripRow(props: { mapLink: MapLink; trip: Trip; routes: string[]; now: number; live: LiveSummary | null; isNext: boolean; expanded: boolean; onToggle: () => void }) {
   const { trip, now, isNext, live } = props;
   const past = new Date(trip.departure).getTime() < now;
   // Riders can set the alarm mid-ride, so offer it until the bus has (probably) arrived.
@@ -215,9 +222,7 @@ function TripRow(props: { mapLink: MapLink; trip: Trip; now: number; live: LiveS
         {isNext && <PulseDot color={colors.primary} size={8} />}
         <Text style={[styles.tripTime, isNext && styles.nextText]}>{formatTime(trip.departure)}</Text>
         <Text style={styles.muted}>→ {formatTime(trip.arrival)} · {minutes} min</Text>
-        <View style={styles.badge}>
-          <Text style={styles.badgeText}>{trip.route}</Text>
-        </View>
+        <RouteBadge trip={trip} routes={props.routes} />
       </View>
       <View style={styles.tripMeta}>
         <View style={styles.metaLeft}>
@@ -293,8 +298,6 @@ const styles = StyleSheet.create({
   tripRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   tripTime: { fontSize: 19, fontWeight: '700', color: colors.text, minWidth: 78, letterSpacing: -0.3 },
   nextText: { color: colors.primary },
-  badge: { backgroundColor: colors.primarySoft, borderRadius: 8, paddingHorizontal: 7, paddingVertical: 2 },
-  badgeText: { color: colors.primary, fontWeight: '700', fontSize: 12 },
   metaLeft: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, overflow: 'hidden' },
   tripMeta: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8, minHeight: 26 },
   countdown: { color: colors.muted, fontWeight: '600' },

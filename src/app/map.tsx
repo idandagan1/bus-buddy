@@ -4,11 +4,12 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Platform, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StopMap } from '@/components/StopMap';
-import { formatTime, loadRoutes, useNow, useTrips } from '@/api';
+import { formatTime, loadRoutes, useNow } from '@/api';
+import { useRouteTrips } from '@/routeTrips';
 import { geocode } from '@/geocode';
 import { distanceMeters } from '@/geo';
 import { statusKey, summarize, useTripStatuses } from '@/live';
-import type { SavedRoute, Stop, Trip } from '@/types';
+import type { SavedRoute, Trip } from '@/types';
 import { colors, gradient, PressableScale, shadow } from '@/ui';
 import { wakeBefore } from '@/wake';
 
@@ -29,8 +30,7 @@ export default function MapScreen() {
 
   if (Platform.OS === 'android') return <Text style={styles.unsupported}>The map is available on iPhone and the website.</Text>;
   if (!route) return <Loading />;
-  const flip = reversed === '1';
-  return <TripMap from={flip ? route.to : route.from} to={flip ? route.from : route.to} tripId={tripId} />;
+  return <TripMap route={route} reversed={reversed === '1'} tripId={tripId} />;
 }
 
 function Loading() {
@@ -41,8 +41,9 @@ function Loading() {
   );
 }
 
-function TripMap({ from, to, tripId }: { from: Stop; to: Stop; tripId: string }) {
-  const { trips } = useTrips(from, to);
+// The trip can be from either carrier when the route shows both.
+function TripMap({ route, reversed, tripId }: { route: SavedRoute; reversed: boolean; tripId: string }) {
+  const { trips } = useRouteTrips(route, reversed);
   const trip = trips?.find((t) => t.id === tripId);
   if (!trip) return <Loading />;
   return <TripMapView trip={trip} />;

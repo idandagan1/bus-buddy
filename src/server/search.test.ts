@@ -28,6 +28,7 @@ const NJT = {
     station('13894', 'Piermont Rd at West Clinton Ave', 40.92411, -73.96473, '166'),
     station('13873', 'Riveredge Rd at Tenafly Rd', 40.9152, -73.9531, '166'),
     station('20100', 'Dean St at Palisade Ave', 40.89275, -73.9726, '166'),
+    station('31899', 'Port Authority Bus Terminal', 40.757, -73.9905, '166'),
     // Hoboken has no Coach USA stop nearby, so it gets no town.
     station('20496', 'Washington St at 1st St', 40.7378, -74.0302, '126'),
   ],
@@ -156,5 +157,29 @@ describe('caching', () => {
     await expect(search('Tenafly')).rejects.toThrow();
     coachUp = true;
     expect(names(await search('Tenafly'))).toContain('Piermont Rd at Hillside Ave');
+  });
+});
+
+describe('the other carrier at the same corner', () => {
+  const place = (id: string, latitude: number, longitude: number) => ({ id, latitude, longitude });
+  const hillside = place('c-hillside', 40.92515, -73.96425);
+  const pabt = place('c-pabt', 40.7569, -73.9903);
+
+  it('pairs a Coach USA route with NJ Transit buses from the same corner to the same terminal', async () => {
+    const leg = await transit.findPartner('http://site', hillside, pabt);
+    expect(leg?.from).toMatchObject({ carrier: 'NJT', routes: ['166'] });
+    expect(['Hillside Ave at Highwood Ave', 'Piermont Rd at Hillside Ave']).toContain(leg?.from.name);
+    expect(leg?.to).toMatchObject({ name: 'Port Authority Bus Terminal', carrier: 'NJT' });
+  });
+
+  it('pairs an NJ Transit route with Coach USA the other way', async () => {
+    const leg = await transit.findPartner('http://site', place('njt:s13893', 40.92534, -73.96437), place('njt:s31899', 40.757, -73.9905));
+    expect(leg?.from.name).toBe('Hillside Ave & Highwood Ave');
+    expect(leg?.to.name).toBe('Port Authority Bus Terminal');
+    expect(leg?.from.carrier).toBeUndefined();
+  });
+
+  it('finds nothing where the other carrier doesn’t stop', async () => {
+    expect(await transit.findPartner('http://site', place('c-9w', 40.9257, -73.9472), pabt)).toBeNull();
   });
 });

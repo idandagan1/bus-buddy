@@ -34,6 +34,35 @@ export async function searchStops(site: string, query: string, origin?: string):
   return groupCorners(coach, njt);
 }
 
+// The other carrier's stops at the same two places as a saved route (Coach USA's 20 and NJ Transit's 166 both
+// run from Café Angelique's corner in Tenafly to Port Authority), so riders who take whichever bus comes first
+// can see both. The boarding stop must be on the same corner; the far end can be across a terminal.
+export const PARTNER_FROM_M = 250;
+export const PARTNER_TO_M = 600;
+type Place = { id: string; latitude: number; longitude: number };
+
+export async function findPartner(site: string, from: Place, to: Place): Promise<{ from: Stop; to: Stop } | null> {
+  if (isNjt(from.id)) {
+    const near = (await coachusa.allStops())
+      .map((s) => ({ s, m: distanceMeters(s, from) }))
+      .filter(({ m }) => m <= PARTNER_FROM_M)
+      .sort((a, b) => a.m - b.m);
+    for (const { s } of near) {
+      const reach = (await coachusa.searchStops('', s.id))
+        .map((d) => ({ d, m: distanceMeters(d, to) }))
+        .filter(({ m }) => m <= PARTNER_TO_M)
+        .sort((a, b) => a.m - b.m)[0];
+      if (reach) return { from: s, to: reach.d };
+    }
+    return null;
+  }
+  for (const s of await njtransit.stationsNear(site, from.latitude, from.longitude, PARTNER_FROM_M)) {
+    const reach = await njtransit.reachableNear(site, s.id, to.latitude, to.longitude, PARTNER_TO_M);
+    if (reach) return { from: { ...s, routes: reach.routes }, to: reach };
+  }
+  return null;
+}
+
 // A route's two stops always belong to the same carrier: stop search only offers destinations reachable from the origin.
 export function getTrips(site: string, from: string, to: string, date: string): Promise<Trip[]> {
   return isNjt(from) ? njtransit.getTrips(site, from, to, date) : coachusa.getTrips(from, to, date);

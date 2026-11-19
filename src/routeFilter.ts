@@ -24,3 +24,15 @@ export function toggleRoute(only: string[] | undefined, route: string | null, ch
   const next = only?.includes(route) ? only.filter((r) => r !== route) : [...(only ?? []), route].sort(byNumber);
   return next.length && next.length < choices.length ? next : undefined;
 }
+
+// How a bus is labeled wherever routes mix: NJ Transit's variants spelled out (the 166X and 166T expresses
+// skip most stops the 166 local makes), Coach USA's routes marked as Coach. `routes` is every route showing.
+export type RouteKind = 'express' | 'turnpike' | 'local' | 'coach' | 'plain';
+
+export function routeLabel(route: string, carrierCode: string, routes: string[]): { label: string; kind: RouteKind } {
+  if (carrierCode !== 'NJT') return { label: `Coach ${route}`, kind: 'coach' };
+  if (/\dX$/.test(route)) return { label: `${route} Express`, kind: 'express' };
+  if (/\dT$/.test(route)) return { label: `${route} Turnpike`, kind: 'turnpike' };
+  const hasExpress = routes.some((r) => r !== route && r.startsWith(route) && /^[XT]$/.test(r.slice(route.length)));
+  return hasExpress ? { label: `${route} Local`, kind: 'local' } : { label: route, kind: 'plain' };
+}

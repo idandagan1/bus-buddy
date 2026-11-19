@@ -36,8 +36,12 @@ export type Trip = {
   stops: TripStop[];
 };
 
+// The same trip on another carrier: its stops near the route's two ends.
+export type Leg = { from: Stop; to: Stop };
+
 // only: the route numbers to show (e.g. ["166X"]); every route when missing.
-export type SavedRoute = { id: string; from: Stop; to: Stop; only?: string[] };
+// also: the other carrier's buses between the same places, shown together (Coach USA's 20 and NJ Transit's 166).
+export type SavedRoute = { id: string; from: Stop; to: Stop; only?: string[]; also?: Leg };
 
 export type Advisory = {
   id: string;
