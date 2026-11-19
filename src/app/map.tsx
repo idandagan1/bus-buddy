@@ -138,7 +138,8 @@ const styles = StyleSheet.create({
   unsupported: { padding: 24, color: colors.muted, fontSize: 16 },
   back: { position: 'absolute', left: 16, backgroundColor: colors.card, borderRadius: 20, paddingVertical: 8, paddingHorizontal: 14 },
   backText: { color: colors.primary, fontSize: 16, fontWeight: '700' },
-  sheet: { position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: colors.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 16, gap: 12 },
+  // Centered and capped on wide screens, so the text isn't stranded at the far left of a desktop.
+  sheet: { position: 'absolute', left: 0, right: 0, bottom: 0, maxWidth: 720, marginHorizontal: 'auto', backgroundColor: colors.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 16, gap: 12 },
   input: { backgroundColor: colors.bg, borderRadius: 14, paddingVertical: 12, paddingHorizontal: 14, fontSize: 16, color: colors.text },
   result: { gap: 2 },
   resultLabel: { color: colors.muted, fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.6 },

@@ -128,21 +128,23 @@ function Schedule(props: { from: Stop; to: Stop; onSwap: () => void; mapLink: Ma
               <Text style={styles.swapText}>Return</Text>
             </PressableScale>
           </View>
+          <View style={styles.heroChips}>
+            <RouteChips
+              trips={all}
+              only={only}
+              onDark
+              onChange={(next) => {
+                setDay(null);
+                setExpanded(null);
+                resetList();
+                onChoose(next);
+              }}
+            />
+          </View>
         </Hero>
       }
     >
       <Advisories advisories={hasLive ? advisories.filter((a) => !a.id.startsWith('bus-tracking')) : advisories} />
-
-      <RouteChips
-        trips={all}
-        only={only}
-        onChange={(next) => {
-          setDay(null);
-          setExpanded(null);
-          resetList();
-          onChoose(next);
-        }}
-      />
 
       {trips ? (
         <DayTabs
@@ -276,6 +278,7 @@ const styles = StyleSheet.create({
   back: { color: 'rgba(255,255,255,0.85)', fontSize: 16, fontWeight: '600', marginBottom: 10 },
   heroRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   heroFrom: { color: '#fff', fontSize: 24, fontWeight: '800', letterSpacing: -0.4 },
+  heroChips: { marginTop: 14 },
   heroCarrier: { marginTop: 10, flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
   heroMap: { borderRadius: 10, paddingVertical: 4, paddingHorizontal: 10, backgroundColor: 'rgba(255,255,255,0.18)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)' },
   heroMapText: { color: '#fff', fontSize: 13, fontWeight: '700' },

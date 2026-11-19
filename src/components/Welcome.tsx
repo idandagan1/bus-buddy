@@ -298,7 +298,8 @@ const styles = StyleSheet.create({
   title: { fontSize: 36, fontWeight: '800', color: '#0f172a', letterSpacing: -0.5 },
   subtitleRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', marginTop: 8 },
   subtitle: { fontSize: 18, color: '#475569' },
-  buttonWrap: { alignSelf: 'stretch', marginTop: 'auto' },
+  // Right under the subtitle, so it's in view on any screen height.
+  buttonWrap: { alignSelf: 'center', width: '100%', maxWidth: 420, marginTop: 28 },
   button: { borderRadius: 16, paddingVertical: 16, alignItems: 'center' },
   buttonText: { color: '#fff', fontSize: 17, fontWeight: '700' },
 });

@@ -4,6 +4,7 @@
 import type { Advisory, Stop, Trip, TripStatus } from '@/types';
 import * as coachusa from './coachusa';
 import * as njtransit from './njtransit';
+import { distanceMeters, MIDTOWN } from '@/geo';
 import { groupCorners, townFinder } from './towns';
 
 const isNjt = (id: string) => id.startsWith(njtransit.ID_PREFIX);
@@ -23,7 +24,12 @@ const njtTowns = () =>
 export async function searchStops(site: string, query: string, origin?: string): Promise<Stop[]> {
   if (origin) return isNjt(origin) ? njtransit.searchStops(site, query, origin, await njtTowns()) : coachusa.searchStops(query, origin);
   // NJ Transit is optional: if its files are unavailable, Coach USA results still come back.
-  const [coach, townOf] = await Promise.all([coachusa.searchStops(query), njtTowns()]);
+  const [found, townOf] = await Promise.all([coachusa.searchStops(query), njtTowns()]);
+  // Coach USA runs as far as Milwaukee; riders here want the stops around New York first.
+  const coach = found
+    .map((s) => ({ s, m: distanceMeters(s, MIDTOWN) }))
+    .sort((a, b) => a.m - b.m)
+    .map(({ s }) => s);
   const njt = await njtransit.searchStops(site, query, undefined, townOf).catch(() => []);
   return groupCorners(coach, njt);
 }

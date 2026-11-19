@@ -2,6 +2,9 @@ type LatLng = { latitude: number; longitude: number };
 
 const METERS_PER_MILE = 1609.344;
 
+// Midtown Manhattan (Port Authority): where most of our riders' routes start or end.
+export const MIDTOWN = { latitude: 40.757, longitude: -73.99 };
+
 export function distanceMeters(a: LatLng, b: LatLng) {
   const R = 6371000;
   const toRad = (d: number) => (d * Math.PI) / 180;

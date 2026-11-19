@@ -2,7 +2,7 @@ import * as Location from 'expo-location';
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { AppState } from 'react-native';
-import { distanceMeters } from './geo';
+import { distanceMeters, MIDTOWN } from './geo';
 import type { SavedRoute, Stop } from './types';
 
 // A recent fix is plenty to tell which end of the route the rider is at.
@@ -10,7 +10,6 @@ const MAX_AGE_MS = 10 * 60 * 1000;
 // Without a location: into the city in the morning, out of it from noon on. "The city" is whichever end of the
 // route is nearer Midtown, so it works whichever way round the route was saved.
 const EVENING_FROM_HOUR = 12;
-const MIDTOWN = { latitude: 40.757, longitude: -73.99 };
 
 type LatLng = { latitude: number; longitude: number };
 

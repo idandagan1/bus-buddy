@@ -44,12 +44,10 @@ export default function SettingsScreen() {
         <Hero>
           <Text style={styles.back} onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}>‹ Back</Text>
           <Animated.Text entering={FadeInDown.duration(400)} style={styles.title}>Wake-up settings</Animated.Text>
+          {Platform.OS === 'web' && <Text style={styles.note}>The wake-up alarm runs in the iPhone app. You can preview tones here.</Text>}
         </Hero>
       }
     >
-      {Platform.OS === 'web' && (
-        <Text style={styles.note}>The wake-up alarm runs in the iPhone app. You can preview tones here.</Text>
-      )}
 
       <Section title="Alert style" delay={60}>
         <Chips
@@ -128,7 +126,7 @@ function Chips({ options, value, label, onChange }: { options: number[]; value?:
 const styles = StyleSheet.create({
   back: { color: 'rgba(255,255,255,0.85)', fontSize: 16, fontWeight: '600', marginBottom: 8 },
   title: { color: '#fff', fontSize: 30, fontWeight: '800', letterSpacing: -0.5 },
-  note: { color: colors.muted, textAlign: 'center', fontSize: 13 },
+  note: { color: 'rgba(255,255,255,0.75)', fontSize: 14, marginTop: 6 },
   section: { backgroundColor: colors.card, borderRadius: 20, padding: 16, gap: 10 },
   sectionTitle: { fontSize: 13, fontWeight: '700', color: colors.muted, letterSpacing: 0.6, textTransform: 'uppercase' },
   tone: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 14, borderWidth: 1.5, borderColor: 'transparent' },

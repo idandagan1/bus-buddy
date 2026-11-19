@@ -262,7 +262,7 @@ function RouteCard({ route, onChange, onRemove }: { route: SavedRoute; onChange:
 
       {alerts.map((a) => (
         <Animated.View key={a.id} entering={CALM} style={[styles.alert, { backgroundColor: severityStyle.high.soft }]}>
-          <Text style={[styles.alertText, { color: severityStyle.high.color }]} numberOfLines={1}>{isDetour(a) ? '↪️' : '⚠️'}  {a.heading}</Text>
+          <Text style={[styles.alertText, { color: severityStyle.high.color }]} numberOfLines={1}>{`${isDetour(a) ? '↪️' : '⚠️'}\u00A0 ${a.heading}`}</Text>
         </Animated.View>
       ))}
 

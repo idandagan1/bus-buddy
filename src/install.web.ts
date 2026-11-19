@@ -59,13 +59,9 @@ if (browser) {
     Object.entries(attrs).forEach(([k, v]) => el.setAttribute(k, v));
     document.head.appendChild(el);
   };
-  // The iPhone adds whatever URL is open, which carries the routes; a manifest start_url would replace it.
+  // The icon and home-screen tags are in app/_layout.tsx. The manifest is added here, and not on iPhones: they add
+  // whatever URL is open, which carries the routes, and a manifest start_url would replace it.
   if (!ios) head('link', { rel: 'manifest', href: '/manifest.webmanifest' });
-  head('link', { rel: 'apple-touch-icon', href: '/icons/icon-180.png' });
-  head('meta', { name: 'apple-mobile-web-app-capable', content: 'yes' });
-  head('meta', { name: 'mobile-web-app-capable', content: 'yes' });
-  head('meta', { name: 'apple-mobile-web-app-title', content: 'Bus Buddy' });
-  head('meta', { name: 'theme-color', content: '#2563eb' });
 
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
