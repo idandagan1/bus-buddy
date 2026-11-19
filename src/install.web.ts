@@ -1,10 +1,11 @@
 // "Add to Home Screen" for the web app. Android's Chrome lets a page show the install prompt itself
-// (beforeinstallprompt); iPhone Safari has no such API, so we explain the Share → Add to Home Screen steps.
+// (beforeinstallprompt); everywhere else we explain the steps for that phone and browser (installSteps.ts).
 // On the iPhone the home-screen app gets storage of its own, apart from Safari's, so saved routes travel in
 // the URL it's added with and are copied in on its first launch.
 import { useSyncExternalStore } from 'react';
+import { installGuide } from './installSteps';
 
-export type InstallMode = 'prompt' | 'ios' | null;
+export type InstallMode = 'prompt' | 'steps' | null;
 
 type InstallPromptEvent = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }> };
 
@@ -16,7 +17,8 @@ const HANDOFF_PARAM = 'routes';
 const HANDED_OFF = 'routesHandedOff';
 
 const browser = typeof window !== 'undefined';
-const ios = browser && (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
+const guide = browser ? installGuide(navigator.userAgent, navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) : null;
+const ios = guide?.os === 'ios';
 const standalone = () =>
   browser && (window.matchMedia('(display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone === true);
 
@@ -88,13 +90,15 @@ const subscribe = (l: () => void) => {
   listeners.add(l);
   return () => void listeners.delete(l);
 };
-const currentMode = (): InstallMode => (dismissed || installed || standalone() ? null : deferred ? 'prompt' : ios ? 'ios' : null);
+// Chrome offers its prompt only once it judges the visitor engaged, so until then Android gets the menu steps too.
+const currentMode = (): InstallMode => (dismissed || installed || standalone() ? null : deferred ? 'prompt' : guide ? 'steps' : null);
 
 export function useInstall() {
   // The server can't know the browser, so the page renders without the card until it's hydrated.
   const mode = useSyncExternalStore(subscribe, currentMode, () => null);
   return {
     mode,
+    steps: guide?.steps ?? [],
     install: async () => {
       if (!deferred) return;
       await deferred.prompt();

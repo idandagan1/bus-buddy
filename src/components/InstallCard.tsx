@@ -6,7 +6,7 @@ import { colors, PressableScale, shadow } from '@/ui';
 
 // A card offering to put the web app on the home screen. Native and already-installed apps never show it.
 export function InstallCard() {
-  const { mode, install, dismiss } = useInstall();
+  const { mode, steps: guide, install, dismiss } = useInstall();
   const [steps, setSteps] = useState(false);
   if (!mode) return null;
 
@@ -30,9 +30,9 @@ export function InstallCard() {
       </View>
       {steps ? (
         <View style={styles.steps}>
-          <Text style={styles.step}>1. Tap the Share button <Text style={styles.share}>⬆︎</Text> in your browser&apos;s toolbar</Text>
-          <Text style={styles.step}>2. Scroll down and choose “Add to Home Screen”</Text>
-          <Text style={styles.step}>3. Tap “Add”, and your routes come along</Text>
+          {guide.map((step, i) => (
+            <Text key={i} style={styles.step}>{i + 1}. {step}</Text>
+          ))}
         </View>
       ) : (
         <PressableScale onPress={add} style={styles.button}>
@@ -54,5 +54,4 @@ const styles = StyleSheet.create({
   buttonText: { color: '#fff', fontSize: 15, fontWeight: '700' },
   steps: { backgroundColor: colors.primarySoft, borderRadius: 12, padding: 12, gap: 6 },
   step: { color: colors.text, fontSize: 14, lineHeight: 20 },
-  share: { color: colors.primary, fontWeight: '700' },
 });
