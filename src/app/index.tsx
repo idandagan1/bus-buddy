@@ -1,6 +1,6 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { Alert, Platform, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   FadeIn,
@@ -16,12 +16,15 @@ import { useDirection } from '@/direction';
 import { severityStyle } from '@/components/Advisories';
 import { ErrorState, StaleNote } from '@/components/ErrorState';
 import { GateBadge } from '@/components/GateBadge';
+import { InstallCard } from '@/components/InstallCard';
 import { finishNudge, useFirstRun } from '@/firstRun';
 import { CarrierTag } from '@/components/CarrierTag';
 import { LiveStatus, toneColors } from '@/components/LiveStatus';
 import { MyAlarms } from '@/components/MyAlarms';
 import { statusKey, summarize, useTripStatuses, type LiveSummary } from '@/live';
 import { RoutePlanner } from '@/components/RoutePlanner';
+import { RouteChips } from '@/components/RouteChips';
+import { chosenTrips, routeChoices } from '@/routeFilter';
 import type { Advisory, SavedRoute, Stop, Trip } from '@/types';
 import { colors, EASE_OUT, gradient, Hero, Page, PressableScale, PulseDot, shadow, Skeleton } from '@/ui';
 
@@ -118,9 +121,15 @@ export default function Home() {
             exiting={FadeOut.duration(150)}
             layout={LinearTransition.duration(250).easing(EASE_OUT)}
           >
-            <RouteCard route={r} onRemove={() => update(routes.filter((x) => x.id !== r.id))} />
+            <RouteCard
+              route={r}
+              onChange={(changed) => update(routes.map((x) => (x.id === r.id ? changed : x)))}
+              onRemove={() => update(routes.filter((x) => x.id !== r.id))}
+            />
           </Animated.View>
         ))}
+
+        {!!routes?.length && <InstallCard />}
       </Page>
     </>
   );
@@ -142,7 +151,8 @@ function confirmRemove(name: string, onConfirm: () => void) {
 // promising a "next bus" over an empty space.
 function NextBusHero({ route }: { route: SavedRoute }) {
   const { from, to, reversed } = useDirection(route);
-  const { trips, error } = useTrips(from, to);
+  const { trips: all, error } = useTrips(from, to);
+  const trips = useMemo(() => chosenTrips(all, route), [all, route]);
   const now = useNow(1000);
   // Whatever goes wrong while loading, the placeholder doesn't outstay its welcome: the route cards below
   // have the same trips (and any error) anyway.
@@ -197,7 +207,7 @@ function NextBusHero({ route }: { route: SavedRoute }) {
         {live && <Text style={styles.glassLive} numberOfLines={1}>{live.text}</Text>}
         <View style={styles.glassRow}>
           <Text style={styles.countdown}>{hh > 0 ? `${hh}:${mm}:${ss}` : `${mm}:${ss}`}</Text>
-          <View style={{ alignItems: 'flex-end' }}>
+          <View style={styles.glassWhen}>
             <Text style={styles.glassTime}>{formatTime(departure)}</Text>
             <Text style={styles.glassSub}>{next.gate ? `Gate ${next.gate} · ` : ''}arrives {formatTime(live?.arrival ?? next.arrival)}</Text>
           </View>
@@ -211,11 +221,14 @@ function NextBusHero({ route }: { route: SavedRoute }) {
 // to wait for the bus, so the home card shows it whatever its severity.
 const isDetour = (a: Advisory) => /detour/i.test(`${a.heading} ${a.paragraphs.join(' ')}`);
 
-function RouteCard({ route, onRemove }: { route: SavedRoute; onRemove: () => void }) {
+function RouteCard({ route, onChange, onRemove }: { route: SavedRoute; onChange: (route: SavedRoute) => void; onRemove: () => void }) {
   const [reversed, setReversed] = useState(false);
   const from = reversed ? route.to : route.from;
   const to = reversed ? route.from : route.to;
-  const { trips, error, offline, cachedAt, reload } = useTrips(from, to);
+  const { trips: all, error, offline, cachedAt, reload } = useTrips(from, to);
+  const trips = useMemo(() => chosenTrips(all, route), [all, route]);
+  // Each bus's route (166 or 166X) only matters when more than one could show up.
+  const showRoute = routeChoices(all, route.only).length > 0 && route.only?.length !== 1;
   const alerts = useAdvisories(trips).filter((a) => a.severity === 'high' || isDetour(a));
   const now = useNow();
   const statuses = useTripStatuses(trips, now);
@@ -245,6 +258,8 @@ function RouteCard({ route, onRemove }: { route: SavedRoute; onRemove: () => voi
         </PressableScale>
       </View>
 
+      <RouteChips trips={all} only={route.only} onChange={(only) => onChange({ ...route, only })} />
+
       {alerts.map((a) => (
         <Animated.View key={a.id} entering={CALM} style={[styles.alert, { backgroundColor: severityStyle.high.soft }]}>
           <Text style={[styles.alertText, { color: severityStyle.high.color }]} numberOfLines={1}>{isDetour(a) ? '↪️' : '⚠️'}  {a.heading}</Text>
@@ -259,16 +274,19 @@ function RouteCard({ route, onRemove }: { route: SavedRoute; onRemove: () => voi
           <Skeleton height={36} />
         </View>
       )}
-      {trips && upcoming.length === 0 && <Text style={styles.muted}>No more buses in the next few days.</Text>}
+      {trips && upcoming.length === 0 && (
+        <Text style={styles.muted}>No more {route.only?.length ? `${route.only.join(' or ')} ` : ''}buses in the next few days.</Text>
+      )}
 
       <View key={`${from.id}-${to.id}`} style={{ gap: 6 }}>
         {upcoming.map((t, i) =>
-          i === 0 ? <NextTrip key={t.id} trip={t} now={now} live={liveOf(t)} /> : (
+          i === 0 ? <NextTrip key={t.id} trip={t} now={now} live={liveOf(t)} showRoute={showRoute} /> : (
             <Animated.View key={t.id} entering={SWAP} style={styles.trip}>
               <Text style={styles.tripTime}>{formatTime(t.departure)}</Text>
-              <Text style={styles.muted}>→ {formatTime(t.arrival)}</Text>
+              <Text style={styles.muted} numberOfLines={1}>→ {formatTime(t.arrival)}{showRoute ? ` · ${t.route}` : ''}</Text>
+              {t.gate && <GateBadge gate={t.gate} />}
               <DelayBadge live={liveOf(t)} />
-              <Text style={styles.tripCountdown}>{formatCountdown(liveOf(t)?.departure ?? t.departure, now)}</Text>
+              <Text style={styles.tripCountdown} numberOfLines={1}>{formatCountdown(liveOf(t)?.departure ?? t.departure, now)}</Text>
             </Animated.View>
           ),
         )}
@@ -299,7 +317,7 @@ function DelayBadge({ live }: { live: LiveSummary | null }) {
 }
 
 // Highlighted next departure with a bar that fills over the final hour.
-function NextTrip({ trip, now, live }: { trip: Trip; now: number; live: LiveSummary | null }) {
+function NextTrip({ trip, now, live, showRoute }: { trip: Trip; now: number; live: LiveSummary | null; showRoute: boolean }) {
   const departure = live?.departure ?? trip.departure;
   const minsLeft = (new Date(departure).getTime() - now) / 60000;
   const fill = Math.min(1, Math.max(0.04, 1 - minsLeft / 60));
@@ -314,7 +332,7 @@ function NextTrip({ trip, now, live }: { trip: Trip; now: number; live: LiveSumm
       <View style={styles.nextRow}>
         <PulseDot color={colors.primary} size={8} />
         <Text style={styles.nextTime}>{formatTime(departure)}</Text>
-        <Text style={styles.muted}>→ {formatTime(live?.arrival ?? trip.arrival)} · {trip.route}</Text>
+        <Text style={styles.muted} numberOfLines={1}>→ {formatTime(live?.arrival ?? trip.arrival)}{showRoute ? ` · ${trip.route}` : ''}</Text>
         {trip.gate && <GateBadge gate={trip.gate} />}
         <Text style={styles.nextCountdown}>{formatCountdown(departure, now)}</Text>
       </View>
@@ -345,7 +363,9 @@ const styles = StyleSheet.create({
   },
   glassTop: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   glassLabel: { color: 'rgba(255,255,255,0.85)', fontSize: 14, fontWeight: '500', flexShrink: 1 },
-  glassRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', marginTop: 8 },
+  // The departure time wraps under the countdown on narrow screens instead of spilling out of the card.
+  glassRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end', justifyContent: 'space-between', columnGap: 12, marginTop: 8 },
+  glassWhen: { alignItems: 'flex-end', marginLeft: 'auto' },
   countdown: { color: '#fff', fontSize: 44, fontWeight: '800', fontVariant: ['tabular-nums'], letterSpacing: -1 },
   glassTime: { color: '#fff', fontSize: 20, fontWeight: '700' },
   glassLive: { color: '#a7f3d0', fontSize: 13, fontWeight: '600', marginTop: 6 },
@@ -367,9 +387,10 @@ const styles = StyleSheet.create({
   nextCountdown: { marginLeft: 'auto', color: colors.primary, fontWeight: '700' },
   track: { height: 6, borderRadius: 3, backgroundColor: 'rgba(37,99,235,0.12)', overflow: 'hidden' },
   barWrap: { height: 6, borderRadius: 3, overflow: 'hidden' },
-  trip: { flexDirection: 'row', alignItems: 'baseline', gap: 8, paddingHorizontal: 12, paddingVertical: 4 },
+  // On narrow screens the gate and countdown wrap to a second line rather than squeezing the times.
+  trip: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 8, rowGap: 4, paddingHorizontal: 12, paddingVertical: 4 },
   tripTime: { fontSize: 16, fontWeight: '600', color: colors.text, minWidth: 74 },
-  tripCountdown: { marginLeft: 'auto', color: colors.muted },
+  tripCountdown: { marginLeft: 'auto', color: colors.muted, flexShrink: 0 },
   alert: { borderRadius: 10, paddingVertical: 8, paddingHorizontal: 12 },
   alertText: { fontSize: 13, fontWeight: '700' },
   muted: { color: colors.muted, fontSize: 14 },

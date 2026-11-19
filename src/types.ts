@@ -36,7 +36,8 @@ export type Trip = {
   stops: TripStop[];
 };
 
-export type SavedRoute = { id: string; from: Stop; to: Stop };
+// only: the route numbers to show (e.g. ["166X"]); every route when missing.
+export type SavedRoute = { id: string; from: Stop; to: Stop; only?: string[] };
 
 export type Advisory = {
   id: string;

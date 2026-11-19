@@ -4,7 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { wakeBefore } from '@/wake';
 import Animated, { FadeInDown, FadeInLeft, FadeInRight, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
-import { dayKey, formatCountdown, formatDay, formatTime, loadRoutes, useAdvisories, useNow, useTrips } from '@/api';
+import { dayKey, formatCountdown, formatDay, formatTime, loadRoutes, saveRoutes, useAdvisories, useNow, useTrips } from '@/api';
 import { Advisories } from '@/components/Advisories';
 import { CarrierTag } from '@/components/CarrierTag';
 import { GateBadge } from '@/components/GateBadge';
@@ -13,6 +13,8 @@ import { LiveStatus } from '@/components/LiveStatus';
 import { statusKey, summarize, useTripStatuses, type LiveSummary } from '@/live';
 import type { SavedRoute, Stop, Trip } from '@/types';
 import { DayTabs } from '@/components/DayTabs';
+import { RouteChips } from '@/components/RouteChips';
+import { chosenTrips } from '@/routeFilter';
 import { Collapsible, colors, EASE_OUT, gradient, Hero, Page, PressableScale, PulseDot, shadow, Skeleton, ToggleIcon } from '@/ui';
 
 export default function RouteScreen() {
@@ -23,6 +25,14 @@ export default function RouteScreen() {
     loadRoutes().then((routes) => setRoute(routes.find((r) => r.id === id) ?? null));
   }, [id]);
 
+  // Saved with the route, so the home card shows the same buses.
+  async function choose(only: string[] | undefined) {
+    if (!route) return;
+    setRoute({ ...route, only });
+    const routes = await loadRoutes();
+    await saveRoutes(routes.map((r) => (r.id === route.id ? { ...r, only } : r)));
+  }
+
   const isReversed = reversed === '1';
   return (
     <>
@@ -32,6 +42,8 @@ export default function RouteScreen() {
           from={isReversed ? route.to : route.from}
           to={isReversed ? route.from : route.to}
           onSwap={() => router.setParams({ reversed: isReversed ? '0' : '1' })}
+          only={route.only}
+          onChoose={choose}
         />
       ) : (
         <Page hero={<Hero><Skeleton height={60} style={{ backgroundColor: 'rgba(255,255,255,0.15)' }} /></Hero>}>{null}</Page>
@@ -40,8 +52,10 @@ export default function RouteScreen() {
   );
 }
 
-function Schedule({ from, to, onSwap, mapLink }: { from: Stop; to: Stop; onSwap: () => void; mapLink: MapLink }) {
-  const { trips, error, offline, cachedAt, reload } = useTrips(from, to);
+function Schedule(props: { from: Stop; to: Stop; onSwap: () => void; mapLink: MapLink; only?: string[]; onChoose: (only: string[] | undefined) => void }) {
+  const { from, to, onSwap, mapLink, only, onChoose } = props;
+  const { trips: all, error, offline, cachedAt, reload } = useTrips(from, to);
+  const trips = useMemo(() => chosenTrips(all, { only }), [all, only]);
   const advisories = useAdvisories(trips);
   const now = useNow();
   const statuses = useTripStatuses(trips, now);
@@ -119,6 +133,17 @@ function Schedule({ from, to, onSwap, mapLink }: { from: Stop; to: Stop; onSwap:
     >
       <Advisories advisories={hasLive ? advisories.filter((a) => !a.id.startsWith('bus-tracking')) : advisories} />
 
+      <RouteChips
+        trips={all}
+        only={only}
+        onChange={(next) => {
+          setDay(null);
+          setExpanded(null);
+          resetList();
+          onChoose(next);
+        }}
+      />
+
       {trips ? (
         <DayTabs
           tabs={days.map((d) => ({ key: d, label: formatDay(trips.find((t) => dayKey(t.departure) === d)!.departure) }))}
@@ -134,7 +159,7 @@ function Schedule({ from, to, onSwap, mapLink }: { from: Stop; to: Stop; onSwap:
       {error && !trips && <ErrorState offline={offline} message={error} onRetry={reload} />}
       {trips && (cachedAt || offline) && <StaleNote cachedAt={cachedAt} offline={offline} />}
       {!trips && !error && [0, 1, 2, 3, 4].map((i) => <Skeleton key={i} height={64} style={{ borderRadius: 16 }} />)}
-      {trips?.length === 0 && <Text style={styles.muted}>No buses found for this route.</Text>}
+      {trips?.length === 0 && <Text style={styles.muted}>No {only?.length ? `${only.join(' or ')} ` : ''}buses found for this route.</Text>}
 
       {!showEarlier && start > 0 && (
         <PressableScale onPress={() => setShowEarlier(true)} style={styles.moreButton}>

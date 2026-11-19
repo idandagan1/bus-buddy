@@ -249,7 +249,10 @@ export async function getTrips(origin: string, from: string, to: string, date: s
   }
   // A day's last buses can leave after midnight; without the next day's own trips they'd make a near-empty day.
   const lastDay = days[days.length - 1];
-  return trips.filter((t) => t.departure.slice(0, 10) <= lastDay).sort((a, b) => Date.parse(a.departure) - Date.parse(b.departure));
+  // Buses leaving together (the 166 local and 166X express at 7:30) list the one that gets there first first.
+  return trips
+    .filter((t) => t.departure.slice(0, 10) <= lastDay)
+    .sort((a, b) => Date.parse(a.departure) - Date.parse(b.departure) || Date.parse(a.arrival) - Date.parse(b.arrival));
 }
 
 // --- Live data: NJ Transit's GTFS-realtime feeds (developer API, credentials in NJT_USERNAME/NJT_PASSWORD) ---

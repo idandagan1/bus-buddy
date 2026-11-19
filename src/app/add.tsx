@@ -18,7 +18,8 @@ export default function AddRoute() {
   async function save(from: Stop, to: Stop) {
     const routes = await loadRoutes();
     const next = editing
-      ? routes.map((r) => (r.id === editing.id ? { ...r, from, to } : r))
+      ? // A route choice (166X) only means something between the same stops.
+        routes.map((r) => (r.id === editing.id ? { ...r, from, to, only: r.from.id === from.id && r.to.id === to.id ? r.only : undefined } : r))
       : [...routes, { id: String(Date.now()), from, to }];
     await saveRoutes(next);
     if (router.canGoBack()) router.back();

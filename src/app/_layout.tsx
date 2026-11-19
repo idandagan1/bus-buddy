@@ -5,6 +5,8 @@ import { syncTracking } from '@/alarm';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { Toast } from '@/components/Toast';
 import { Welcome } from '@/components/Welcome';
+// On the web: home-screen icons and the install prompt, and saved routes handed over to a new home-screen app.
+import '@/install';
 import { colors } from '@/ui';
 
 export default function RootLayout() {

@@ -105,7 +105,8 @@ export async function getTrips(origin: string, destination: string, date: string
           longitude: Number(s.stop.location.longitude),
         })),
     }))
-    .sort((a, b) => a.departure.localeCompare(b.departure));
+    // Buses leaving together list the one that gets there first first.
+    .sort((a, b) => Date.parse(a.departure) - Date.parse(b.departure) || Date.parse(a.arrival) - Date.parse(b.arrival));
 }
 
 // Service advisories only ship inside coachusa.com's schedule pages (Next.js __NEXT_DATA__).
