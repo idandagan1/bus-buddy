@@ -272,6 +272,13 @@ describe('Home: saved routes', () => {
     expect(router.push).toHaveBeenLastCalledWith({ pathname: '/add', params: { edit: 'r1' } });
   });
 
+  it('hides settings on the website, where the wake-up alarm doesn’t run', async () => {
+    setOS('web');
+    await save([]);
+    await show();
+    expect(screen.queryByText('⚙︎')).toBeNull();
+  });
+
   it('follows the likely direction home on the hero', async () => {
     jest.mocked(useDirection).mockImplementation((route) => ({ from: route.to, to: route.from, reversed: true }));
     await save([r1]);

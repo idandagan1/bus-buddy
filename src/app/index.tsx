@@ -77,9 +77,12 @@ export default function Home() {
           <Hero overlap={!routes?.length}>
             <View style={styles.heroTop}>
               <Animated.Text style={styles.greeting}>{greeting} 👋</Animated.Text>
-              <PressableScale onPress={() => router.push('/settings')} hitSlop={10} style={styles.gear}>
-                <Text style={styles.gearIcon}>⚙︎</Text>
-              </PressableScale>
+              {/* Settings are all for the wake-up alarm, which needs the iPhone app; the website hides them. */}
+              {Platform.OS !== 'web' && (
+                <PressableScale onPress={() => router.push('/settings')} hitSlop={10} style={styles.gear}>
+                  <Text style={styles.gearIcon}>⚙︎</Text>
+                </PressableScale>
+              )}
             </View>
             {routes?.[0] ? (
               <NextBusHero route={routes[0]} />
