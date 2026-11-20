@@ -20,7 +20,11 @@ const ARMED_KEY = 'armedTrip';
 
 export async function loadArmedTrip(): Promise<ArmedTrip | null> {
   const raw = await AsyncStorage.getItem(ARMED_KEY);
-  return raw ? JSON.parse(raw) : null;
+  try {
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
 }
 
 export async function saveArmedTrip(trip: ArmedTrip | null) {

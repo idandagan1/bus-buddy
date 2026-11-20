@@ -21,6 +21,8 @@ export function RouteChips(props: {
   const chip = (label: string, on: boolean, value: string | null) => {
     const kind = value ? routeLabel(value, carrierOf.get(value) ?? 'NJT', choices).kind : null;
     const tint = kind ? kindColors[kind].fg : null;
+    // On the dark header a line chip is its badge (pale fill, colored text), and solid with a white ring when chosen.
+    const dark = onDark && kind ? (on ? { chip: { backgroundColor: tint!, borderColor: '#fff' }, text: { color: '#fff' } } : { chip: { backgroundColor: kindColors[kind].bg, borderColor: kindColors[kind].bg }, text: { color: tint! } }) : null;
     return (
       <PressableScale
         key={label}
@@ -29,9 +31,9 @@ export function RouteChips(props: {
         accessibilityRole="button"
         accessibilityLabel={value ? routeLabel(value, carrierOf.get(value) ?? 'NJT', choices).label : label}
         accessibilityState={{ selected: on }}
-        style={[styles.chip, onDark && styles.chipDark, on && (onDark ? styles.onDark : [styles.on, tint && { backgroundColor: tint, borderColor: tint }])]}
+        style={dark ? [styles.chip, dark.chip] : [styles.chip, onDark && styles.chipDark, on && (onDark ? styles.onDark : [styles.on, tint && { backgroundColor: tint, borderColor: tint }])]}
       >
-        <Text style={[styles.text, onDark && styles.textDark, !on && !onDark && tint && { color: tint }, on && (onDark ? [styles.onDarkText, tint && { color: tint }] : styles.onText)]}>
+        <Text style={dark ? [styles.text, dark.text] : [styles.text, onDark && styles.textDark, !on && !onDark && tint && { color: tint }, on && (onDark ? styles.onDarkText : styles.onText)]}>
           {label}
         </Text>
       </PressableScale>

@@ -25,7 +25,7 @@ import { statusKey, summarize, useTripStatuses, type LiveSummary } from '@/live'
 import { RoutePlanner } from '@/components/RoutePlanner';
 import { RouteBadge } from '@/components/RouteBadge';
 import { RouteChips } from '@/components/RouteChips';
-import { chosenTrips, linesOf, offerLabel, pickLines, routeChoices, routeLabel } from '@/routeFilter';
+import { chosenTrips, linesOf, offerLabel, pickLines, routeChoices } from '@/routeFilter';
 import { usePartner, useRouteTrips } from '@/routeTrips';
 import type { Advisory, SavedRoute, Stop, Trip } from '@/types';
 import { colors, EASE_OUT, gradient, Hero, Page, PressableScale, PulseDot, shadow, Skeleton } from '@/ui';
@@ -199,7 +199,7 @@ function NextBusHero({ route }: { route: SavedRoute }) {
       <Animated.View entering={CALM} style={styles.glass}>
         <View style={styles.glassTop}>
           <PulseDot color="#34d399" />
-          <Text style={styles.glassLabel}>{from.town || from.name} → {to.town || to.name} · {routeLabel(next.route, next.carrierCode, routeChoices(all, route.only)).label}</Text>
+          <Text style={styles.glassLabel}>{from.town || from.name} → {to.town || to.name} · {next.route}</Text>
           {Platform.OS !== 'android' && (
             <PressableScale onPress={openMap} hitSlop={8} style={styles.mapButton}>
               <Text style={styles.mapText}>🗺  Map</Text>
@@ -258,7 +258,7 @@ function RouteCard({ route, onChange, onRemove }: { route: SavedRoute; onChange:
           <Text style={styles.cardTo} numberOfLines={1}>→ {to.name}</Text>
           <View style={styles.tags}>
             <CarrierTag stop={route.from} />
-            {route.also && <CarrierTag stop={route.also.from} />}
+            {route.also && <CarrierTag stop={route.also.from} onRemove={() => onChange({ ...route, also: undefined, only: undefined })} />}
           </View>
         </Animated.View>
         <PressableScale onPress={swap} hitSlop={8} style={styles.swap}>

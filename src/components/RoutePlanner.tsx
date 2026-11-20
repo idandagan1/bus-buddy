@@ -40,8 +40,10 @@ export function RoutePlanner(props: {
     setQuery('');
     if (active === 'from') {
       setFrom(stop);
-      if (to?.id === stop.id) setTo(null);
-      setActive(to ? null : 'to');
+      // Picking the destination as the origin clears it, so ask for a new one.
+      const keepTo = to && to.id !== stop.id;
+      if (!keepTo) setTo(null);
+      setActive(keepTo ? null : 'to');
     } else {
       setTo(stop);
       setActive(null);
@@ -220,20 +222,26 @@ function Results({ query, origin, onPick }: { query: string; origin?: string; on
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
+    // A slower answer to an earlier search must not replace this one.
+    let current = true;
     const timer = setTimeout(() => {
       searchStops(query, origin)
         .then((r) => {
+          if (!current) return;
           setResults(r);
           setError(null);
         })
-        .catch((e) => setError({ message: e.message, offline: e instanceof OfflineError }));
+        .catch((e) => current && setError({ message: e.message, offline: e instanceof OfflineError }));
     }, 250);
-    return () => clearTimeout(timer);
+    return () => {
+      current = false;
+      clearTimeout(timer);
+    };
   }, [query, origin, attempt]);
 
   if (error) return <ErrorState compact offline={error.offline} message={error.message} onRetry={() => setAttempt((n) => n + 1)} />;
   if (!results) return <ActivityIndicator color={colors.primary} style={{ marginTop: 12 }} />;
-  if (!results.length) return <Text style={styles.empty}>No stops match “{query}”.</Text>;
+  if (!results.length) return <Text style={styles.empty}>{query.trim() ? `No stops match “${query}”.` : 'No stops to choose from here.'}</Text>;
 
   return (
     <View style={styles.results}>

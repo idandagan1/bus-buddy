@@ -128,7 +128,16 @@ function Schedule(props: { route: SavedRoute; reversed: boolean; onSwap: () => v
               <Text style={styles.heroTo} numberOfLines={1}>→ {to.name}</Text>
               <View style={styles.heroCarrier}>
                 <CarrierTag stop={from} onDark />
-                {route.also && <CarrierTag stop={reversed ? route.also.to : route.also.from} onDark />}
+                {route.also && (
+                  <CarrierTag
+                    stop={reversed ? route.also.to : route.also.from}
+                    onDark
+                    onRemove={() => {
+                      restart();
+                      onChange({ ...route, also: undefined, only: undefined });
+                    }}
+                  />
+                )}
                 {Platform.OS !== 'android' && mapTrip && (
                   <PressableScale onPress={() => router.push({ pathname: '/map', params: { ...mapLink, trip: mapTrip.id } })} hitSlop={8} style={styles.heroMap}>
                     <Text style={styles.heroMapText}>🗺  Map</Text>

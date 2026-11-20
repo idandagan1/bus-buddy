@@ -15,9 +15,10 @@ export const kindColors: Record<RouteKind, { fg: string; bg: string }> = {
 export function RouteBadge({ trip, routes }: { trip: Trip; routes: string[] }) {
   const { label, kind } = routeLabel(trip.route, trip.carrierCode, routes);
   const c = kindColors[kind];
+  // Just the line, as on the chips; its color says express, Turnpike, local or Coach USA, and screen readers get it in words.
   return (
-    <View style={[styles.badge, { backgroundColor: c.bg }]}>
-      <Text style={[styles.text, { color: c.fg }]} numberOfLines={1}>{label}</Text>
+    <View style={[styles.badge, { backgroundColor: c.bg }]} accessible accessibilityLabel={label}>
+      <Text style={[styles.text, { color: c.fg }]} numberOfLines={1}>{trip.route}</Text>
     </View>
   );
 }

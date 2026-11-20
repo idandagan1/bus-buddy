@@ -172,7 +172,11 @@ let advisoryCache: { at: number; items: RawAdvisory[] } | null = null;
 
 async function allAdvisories(): Promise<RawAdvisory[]> {
   if (advisoryCache && Date.now() - advisoryCache.at < ADVISORY_TTL_MS) return advisoryCache.items;
-  const html = await (await fetch(ADVISORY_PAGE)).text();
+  const res = await fetch(ADVISORY_PAGE).catch((e: Error) => {
+    throw new Error(`coachusa advisories → ${e.message}`);
+  });
+  if (!res.ok) throw new Error(`coachusa advisories → ${res.status}`);
+  const html = await res.text();
   const json = html.match(/<script id="__NEXT_DATA__" type="application\/json">(.*?)<\/script>/s)?.[1];
   if (!json) throw new Error('coachusa advisories: page format changed');
   const items: RawAdvisory[] = JSON.parse(json).props.pageProps.serviceAdvisories ?? [];

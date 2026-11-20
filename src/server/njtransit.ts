@@ -360,7 +360,8 @@ async function getAlertsFeed() {
 
 const { ScheduleRelationship: TripRel } = GtfsRealtimeBindings.transit_realtime.TripDescriptor;
 const { ScheduleRelationship: StopRel } = GtfsRealtimeBindings.transit_realtime.TripUpdate.StopTimeUpdate;
-const iso = (seconds: number | Long | null | undefined) => (seconds ? new Date(Number(seconds) * 1000).toISOString() : undefined);
+// Unset times decode as 0 (a Long, which is truthy), not null.
+const iso = (seconds: number | Long | null | undefined) => (Number(seconds) ? new Date(Number(seconds) * 1000).toISOString() : undefined);
 
 // journeyId is njt:<route>:<trip>:<boarding index>:<alighting index> (indexes into the trip's stop pattern),
 // so the live times are for the rider's own stops, not the whole trip's.
@@ -375,7 +376,8 @@ export async function getStatus(site: string, journeyId: string, date: string): 
   const times = [trip[4]];
   for (let k = 5; k < trip.length; k++) times.push(times[times.length - 1] + (trip[k] as number));
   const stopTimes = (update.stopTimeUpdate ?? []).filter((s) => s.scheduleRelationship !== StopRel.NO_DATA);
-  const delay = update.delay ?? stopTimes[0]?.departure?.delay ?? stopTimes[0]?.arrival?.delay ?? 0;
+  // An unset trip delay decodes as 0, so fall through to the first stop's.
+  const delay = update.delay || (stopTimes[0]?.departure?.delay ?? stopTimes[0]?.arrival?.delay ?? 0);
 
   // A stop the feed still predicts is ahead of the bus; one it no longer lists, while later stops are listed,
   // has been passed — then the best guess for when is the schedule plus the bus's current delay.
@@ -385,7 +387,8 @@ export async function getStatus(site: string, journeyId: string, date: string): 
     const stu = stopTimes.find((s) => s.stopId === pattern[i] || s.stopSequence === seq);
     if (stu?.scheduleRelationship === StopRel.SKIPPED) return { time: { scheduled }, skipped: true };
     const event = stu?.[which] ?? stu?.departure ?? stu?.arrival;
-    if (event?.time) return { time: { scheduled, estimated: iso(event.time) } };
+    const estimated = iso(event?.time);
+    if (estimated) return { time: { scheduled, estimated } };
     const shifted = (seconds: number) => new Date(Date.parse(scheduled) + seconds * 1000).toISOString();
     if (stopTimes.length && stopTimes.every((s) => (s.stopSequence ?? 0) > seq)) return { time: { scheduled, actual: shifted(delay) } };
     // Terminals often have no prediction of their own: carry over the delay from the last predicted stop before.
@@ -421,7 +424,7 @@ export async function getAdvisories(routeId: string | null): Promise<Advisory[]>
   for (const e of feed.entity) {
     const a = e.alert;
     if (!a || seen.has(e.id) || !a.informedEntity?.some((i) => i.routeId === routeId)) continue;
-    if (a.activePeriod?.length && !a.activePeriod.some((p) => Number(p.start ?? 0) <= now && (!p.end || Number(p.end) >= now))) continue;
+    if (a.activePeriod?.length && !a.activePeriod.some((p) => Number(p.start ?? 0) <= now && (!Number(p.end) || Number(p.end) >= now))) continue;
     seen.add(e.id);
     const text = a.descriptionText?.translation?.[0]?.text?.trim() || a.headerText?.translation?.[0]?.text?.trim() || '';
     if (!text) continue;

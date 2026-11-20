@@ -24,7 +24,11 @@ const KEY = 'settings';
 
 export async function loadSettings(): Promise<Settings> {
   const raw = await AsyncStorage.getItem(KEY).catch(() => null);
-  const settings: Settings = { ...DEFAULTS, ...(raw ? JSON.parse(raw) : {}) };
+  let saved = {};
+  try {
+    saved = raw ? JSON.parse(raw) : {};
+  } catch {} // damaged settings fall back to the defaults
+  const settings: Settings = { ...DEFAULTS, ...saved };
   // Older versions offered distances in km; those fall back to the default.
   return RADII_M.includes(settings.radiusM) ? settings : { ...settings, radiusM: DEFAULTS.radiusM };
 }

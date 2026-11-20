@@ -37,8 +37,16 @@ export default function AlarmScreen() {
   useEffect(() => {
     if (!trip) return;
     let sub: Location.LocationSubscription | undefined;
-    Location.watchPositionAsync({ accuracy: Location.Accuracy.Balanced, distanceInterval: 50 }, (loc) => setHere(loc.coords)).then((s) => (sub = s));
-    return () => sub?.remove();
+    let closed = false;
+    Location.watchPositionAsync({ accuracy: Location.Accuracy.Balanced, distanceInterval: 50 }, (loc) => setHere(loc.coords)).then((s) => {
+      // Left the screen before the watch started: stop it right away so GPS doesn't stay on.
+      if (closed) s.remove();
+      else sub = s;
+    });
+    return () => {
+      closed = true;
+      sub?.remove();
+    };
   }, [trip]);
 
   const distance = trip && here ? distanceToStop(here, trip) : null;

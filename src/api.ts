@@ -90,7 +90,12 @@ export async function fetchTrips(from: string, to: string): Promise<Trip[]> {
 async function readCachedTrips(key: string): Promise<CachedTrips | null> {
   const raw = await AsyncStorage.getItem(key).catch(() => null);
   if (!raw) return null;
-  const parsed = JSON.parse(raw);
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return null; // a damaged copy is as good as none
+  }
   return Array.isArray(parsed) ? { savedAt: 0, trips: parsed } : parsed; // older builds cached a bare array
 }
 
@@ -135,7 +140,12 @@ export function useTrips(from: Stop | null, to: Stop | null) {
     readCachedTrips(key).then(
       (cached) =>
         cached &&
-        setState((s) => (s.key === key && s.trips ? s : { key, trips: cached.trips, error: null, offline: false, cachedAt: cached.savedAt || null })),
+        // If the fetch already failed, the saved copy shows with that error still known.
+        setState((s) =>
+          s.key === key && s.trips
+            ? s
+            : { key, trips: cached.trips, error: s.key === key ? s.error : null, offline: s.key === key && s.offline, cachedAt: cached.savedAt || null },
+        ),
     );
     load();
     const timer = setInterval(load, REFRESH_MS);
@@ -166,7 +176,11 @@ const ROUTES_KEY = 'savedRoutes';
 
 export async function loadRoutes(): Promise<SavedRoute[]> {
   const raw = await AsyncStorage.getItem(ROUTES_KEY);
-  return raw ? JSON.parse(raw) : [];
+  try {
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
 }
 
 export async function saveRoutes(routes: SavedRoute[]) {

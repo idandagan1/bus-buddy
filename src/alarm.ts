@@ -38,9 +38,12 @@ async function stopTracking() {
   if (await Location.hasStartedGeofencingAsync(GEOFENCE_TASK)) await Location.stopGeofencingAsync(GEOFENCE_TASK);
 }
 
-// Alarms set before armedAt existed are capped from their due time instead.
+// Alarms set before armedAt existed are capped from their due time instead; one with neither is from a much
+// older build and long over.
 function expiresAt(trip: ArmedTrip) {
-  const cap = (trip.armedAt ?? trip.dueAt ?? Date.now()) + MAX_ARMED_MS;
+  const since = trip.armedAt ?? trip.dueAt;
+  if (since == null) return 0;
+  const cap = since + MAX_ARMED_MS;
   return trip.dueAt ? Math.min(trip.dueAt + EXPIRES_AFTER_MS, cap) : cap;
 }
 
