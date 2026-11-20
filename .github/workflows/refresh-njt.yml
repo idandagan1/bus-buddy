@@ -25,6 +25,7 @@ jobs:
           NJT_USERNAME: ${{ secrets.NJT_USERNAME }}
           NJT_PASSWORD: ${{ secrets.NJT_PASSWORD }}
       - run: npx expo export -p web
-      - run: npx eas-cli@latest deploy --prod --environment production --non-interactive
+      # Deploys, then checks production serves the new build (re-pointing it if not).
+      - run: scripts/deploy-web.sh
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
