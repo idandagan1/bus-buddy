@@ -322,7 +322,7 @@ describe('Schedule screen', () => {
     expect(saved).toEqual({ ...route, also: leg, only: undefined });
   });
 
-  it('merges both carriers, and leaving out the other carrier’s lines takes it off', async () => {
+  it('merges both carriers, and filtering to one line keeps the other carrier on the route', async () => {
     const also: Leg = { from: coachFrom, to: coachTo };
     const njtNext = trip(at(10, 30), '166X');
     const njtLocal = trip(at(10, 45), '166');
@@ -338,8 +338,9 @@ describe('Schedule screen', () => {
 
     await fireEvent.press(screen.getByRole('button', { name: '166X Express' }));
     const saved = (await loadRoutes()).find((r) => r.id === 'r1');
-    expect(saved?.also).toBeUndefined();
+    expect(saved?.also).toEqual(also);
     expect(saved?.only).toEqual(['166X']);
+    expect(screen.getByRole('button', { name: 'Remove Coach USA' })).toBeOnTheScreen();
   });
 
   it('shows the other carrier’s tag for the return trip', async () => {

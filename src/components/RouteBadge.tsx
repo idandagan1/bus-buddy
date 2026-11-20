@@ -2,11 +2,12 @@ import { StyleSheet, Text, View } from 'react-native';
 import { routeLabel, type RouteKind } from '@/routeFilter';
 import type { Trip } from '@/types';
 
-// One look per kind of bus, the same on rows, chips and headers: express purple, Turnpike teal, local gray,
+// One look per kind of bus, the same on rows, chips and headers: express purple, Turnpike pink (not green, which
+// reads as chosen), local gray,
 // Coach USA in its blue.
 export const kindColors: Record<RouteKind, { fg: string; bg: string }> = {
   express: { fg: '#6d28d9', bg: '#f3e8ff' },
-  turnpike: { fg: '#0f766e', bg: '#ccfbf1' },
+  turnpike: { fg: '#be185d', bg: '#fce7f3' },
   local: { fg: '#475569', bg: '#eef2f6' },
   coach: { fg: '#0461A9', bg: '#e0efff' },
   plain: { fg: '#2563eb', bg: '#e8efff' },

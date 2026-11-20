@@ -25,7 +25,7 @@ import { statusKey, summarize, useTripStatuses, type LiveSummary } from '@/live'
 import { RoutePlanner } from '@/components/RoutePlanner';
 import { RouteBadge } from '@/components/RouteBadge';
 import { RouteChips } from '@/components/RouteChips';
-import { chosenTrips, linesOf, offerLabel, pickLines, routeChoices } from '@/routeFilter';
+import { chosenTrips, offerLabel, routeChoices } from '@/routeFilter';
 import { usePartner, useRouteTrips } from '@/routeTrips';
 import type { Advisory, SavedRoute, Stop, Trip } from '@/types';
 import { colors, EASE_OUT, gradient, Hero, Page, PressableScale, PulseDot, shadow, Skeleton } from '@/ui';
@@ -269,7 +269,7 @@ function RouteCard({ route, onChange, onRemove }: { route: SavedRoute; onChange:
       <RouteChips
         trips={all}
         only={route.only}
-        onChange={(only) => onChange(pickLines(route, only, linesOf(legs[0]), linesOf(legs[1])))}
+        onChange={(only) => onChange({ ...route, only })}
         // Route choices were made among the old set of buses, so they start over.
         offer={!route.also && partner ? { label: offerLabel(partner), onPress: () => onChange({ ...route, also: partner, only: undefined }) } : null}
       />

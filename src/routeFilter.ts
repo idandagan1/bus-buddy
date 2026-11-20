@@ -37,19 +37,9 @@ export function routeLabel(route: string, carrierCode: string, routes: string[])
   return hasExpress ? { label: `${route} Local`, kind: 'local' } : { label: route, kind: 'plain' };
 }
 
-// Choosing lines on a route that has the other carrier added: leaving out every one of its lines takes the other
-// carrier off again (and the chip goes back to offering it). `own` and `extra` are each carrier's lines.
-export function pickLines(route: SavedRoute, only: string[] | undefined, own: string[], extra: string[]): SavedRoute {
-  if (!route.also || !only?.length || only.some((r) => extra.includes(r))) return { ...route, only };
-  return { ...route, also: undefined, only: only.length < own.length ? only : undefined };
-}
-
 // The dashed chip offering the other carrier's buses from the same corner: its lines when known (NJ Transit's
 // stops list them), otherwise just its name.
 export function offerLabel(leg: Leg) {
   if (leg.from.carrier !== 'NJT') return '+ Coach USA';
   return leg.to.routes?.length ? `+ ${leg.to.routes.join(' / ')} NJT` : '+ NJ Transit';
 }
-
-// Every line in a list of trips.
-export const linesOf = (trips: Trip[] | null) => [...new Set((trips ?? []).map((t) => t.route))];

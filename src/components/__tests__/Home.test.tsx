@@ -484,12 +484,20 @@ describe('Home: line chips', () => {
       expect(await loadRoutes()).toEqual([{ id: 'r1', from: pabt, to: tenafly }]);
     });
 
-    it('takes the other carrier off when none of its lines are kept', async () => {
+    it('only filters when none of the other carrier’s lines are kept; the ✕ is what takes it off', async () => {
       await save([both]);
       await show();
       await fireEvent.press(chip('Coach 20'));
       await flush();
-      expect(await loadRoutes()).toEqual([{ id: 'r1', from: pabt, to: tenafly }]);
+      expect(await loadRoutes()).toEqual([{ ...both, only: ['20'] }]);
+      expect(screen.getByText('NJ Transit')).toBeOnTheScreen();
+      expect(screen.getByRole('button', { name: 'Remove NJ Transit' })).toBeOnTheScreen();
+      expect(screen.queryByRole('button', { name: /^\+/ })).toBeNull();
+
+      // Back to All: the other carrier's buses are still there.
+      await fireEvent.press(chip('All'));
+      await flush();
+      expect(await loadRoutes()).toEqual([{ ...both, only: undefined }]);
     });
 
     it('keeps the other carrier when one of its lines is kept', async () => {

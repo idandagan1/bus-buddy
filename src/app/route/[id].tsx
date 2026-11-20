@@ -15,7 +15,7 @@ import type { SavedRoute, Trip } from '@/types';
 import { DayTabs } from '@/components/DayTabs';
 import { RouteChips } from '@/components/RouteChips';
 import { RouteBadge } from '@/components/RouteBadge';
-import { chosenTrips, linesOf, offerLabel, pickLines, routeChoices } from '@/routeFilter';
+import { chosenTrips, offerLabel, routeChoices } from '@/routeFilter';
 import { usePartner, useRouteTrips } from '@/routeTrips';
 import { Collapsible, colors, EASE_OUT, gradient, Hero, Page, PressableScale, PulseDot, shadow, Skeleton, ToggleIcon } from '@/ui';
 
@@ -157,7 +157,7 @@ function Schedule(props: { route: SavedRoute; reversed: boolean; onSwap: () => v
               onDark
               onChange={(next) => {
                 restart();
-                onChange(pickLines(route, next, linesOf(legs[0]), linesOf(legs[1])));
+                onChange({ ...route, only: next });
               }}
               offer={
                 !route.also && partner
