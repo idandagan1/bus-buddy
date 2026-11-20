@@ -14,7 +14,7 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useInsets } from '@/insets';
 import { finishWelcome, useFirstRun } from '@/firstRun';
 import Svg, { Circle, Defs, Ellipse, G, Line, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
 import { gradient, PressableScale, tapFeedback } from '@/ui';
@@ -38,7 +38,7 @@ export function Welcome() {
 
 function Scene({ onDone }: { onDone: () => void }) {
   const { width, height } = useWindowDimensions();
-  const insets = useSafeAreaInsets();
+  const insets = useInsets();
   const still = useReducedMotion();
   const groundTop = height * 0.5;
   const [leaving, setLeaving] = useState(false);

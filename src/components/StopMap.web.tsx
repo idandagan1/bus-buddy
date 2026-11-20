@@ -47,6 +47,9 @@ export function StopMap({ stops, selected, place, bus, busTitle, focus, onSelect
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
       }).addTo(map);
       locateControl(L, () => onLocate.current()).addTo(map);
+      // Zoom and locate buttons clear the status bar in an iPhone home-screen app.
+      const corner = map.getContainer().querySelector<HTMLElement>('.leaflet-top.leaflet-right');
+      if (corner) corner.style.top = 'env(safe-area-inset-top)';
       map.fitBounds(bounds(initialStops.current), PADDING);
       instance = { L, map, layer: L.layerGroup().addTo(map), meLayer: L.layerGroup().addTo(map) };
       setReady(instance);

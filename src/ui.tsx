@@ -10,7 +10,7 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useInsets } from '@/insets';
 
 export const colors = {
   bg: '#f3f5fb',
@@ -63,7 +63,7 @@ export function Page({ children, hero, overlap = true, onEndReached }: { childre
 }
 
 export function Hero({ children, overlap = true }: { children: ReactNode; overlap?: boolean }) {
-  const insets = useSafeAreaInsets();
+  const insets = useInsets();
   return (
     <LinearGradient colors={gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.hero, !overlap && styles.heroFlat, { paddingTop: insets.top + 20 }]}>
       <View style={styles.heroInner}>{children}</View>

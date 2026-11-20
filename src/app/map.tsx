@@ -2,7 +2,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Platform, StyleSheet, Text, TextInput, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useInsets } from '@/insets';
 import { StopMap } from '@/components/StopMap';
 import { formatTime, loadRoutes, useNow } from '@/api';
 import { useRouteTrips } from '@/routeTrips';
@@ -50,7 +50,7 @@ function TripMap({ route, reversed, tripId }: { route: SavedRoute; reversed: boo
 }
 
 function TripMapView({ trip }: { trip: Trip }) {
-  const insets = useSafeAreaInsets();
+  const insets = useInsets();
   const now = useNow();
   const status = useTripStatuses([trip], now)[statusKey(trip)];
   const live = summarize(status, now);

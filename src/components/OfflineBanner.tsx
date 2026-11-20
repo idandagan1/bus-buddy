@@ -1,13 +1,13 @@
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInUp, FadeOutUp } from 'react-native-reanimated';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useInsets } from '@/insets';
 import { useOnline } from '@/network';
 import { EASE_OUT } from '@/ui';
 
 // Floating pill at the top of every screen while the device is offline.
 export function OfflineBanner() {
   const online = useOnline();
-  const insets = useSafeAreaInsets();
+  const insets = useInsets();
   if (online !== false) return null;
   return (
     <View pointerEvents="none" style={[styles.wrap, { top: insets.top + 8 }]}>

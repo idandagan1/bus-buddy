@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown, FadeOutDown } from 'react-native-reanimated';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useInsets } from '@/insets';
 import { EASE_OUT } from '@/ui';
 
 const DURATION_MS = 2500;
@@ -18,7 +18,7 @@ export function showToast(text: string) {
 
 export function Toast() {
   const [message, setMessage] = useState<Message | null>(null);
-  const insets = useSafeAreaInsets();
+  const insets = useInsets();
 
   useEffect(() => {
     listeners.add(setMessage);
