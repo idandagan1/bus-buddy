@@ -90,6 +90,23 @@ describe('Advisories', () => {
     expect(screen.getByText('Just a heading')).toBeOnTheScreen();
     expect(screen.getByText('ℹ️')).toBeOnTheScreen();
   });
+
+  it('puts a detour by the rider’s stop first, styled urgent and labeled', async () => {
+    const detour = advisory('d', 'low', 'Bus route 166 is on a detour on E Clinton between Westervelt Ave and Engle Street in Tenafly.', ['Buses will use Elm St.']);
+    const stop = { id: 's', name: 'Dean Dr at East Clinton Ave', town: 'Tenafly', state: 'NJ', latitude: 0, longitude: 0 };
+    await render(<Advisories advisories={[advisory('h', 'high', 'Port Authority Construction Advisory'), detour]} stops={[stop]} />);
+    expect(screen.getByText('Detour near your stop in Tenafly: buses may skip it')).toBeOnTheScreen();
+    expect(screen.getByText('↪️')).toBeOnTheScreen();
+    const headings = screen.getAllByText(/Advisory|detour on/).map((n) => n.props.children);
+    expect(headings[0]).toMatch(/detour on E Clinton/);
+  });
+
+  it('shows a detour without a label when it’s not near the rider’s stops', async () => {
+    const detour = advisory('d', 'low', 'Route 166 is on a detour on Main St in Hackensack.');
+    await render(<Advisories advisories={[detour]} stops={[{ id: 's', name: 'Engle St at Oak St', town: 'Tenafly', state: 'NJ', latitude: 0, longitude: 0 }]} />);
+    expect(screen.queryByText(/near your stop|check your stop/)).toBeNull();
+    expect(screen.getByText('↪️')).toBeOnTheScreen();
+  });
 });
 
 describe('Toast', () => {

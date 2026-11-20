@@ -368,6 +368,21 @@ describe('Home: saved routes', () => {
     expect(screen.getByText('↪️  Tenafly changes')).toBeOnTheScreen();
     expect(screen.queryByText(/Elevator out/)).toBeNull();
   });
+
+  it('flags a detour on the street of a saved stop, with the alert’s full text', async () => {
+    const detour: Advisory = {
+      id: 'd',
+      severity: 'low',
+      heading: 'Bus route 166 is on a detour on Main St between Elm St and Oak St in Tenafly due to road closure.',
+      paragraphs: ['Buses will use Elm St.'],
+      updated: null,
+    };
+    jest.mocked(useAdvisories).mockImplementation((trips) => (trips?.length ? [detour] : []));
+    await save([r1]);
+    await show();
+    expect(screen.getByText('↪️  Detour near your stop in Tenafly: buses may skip it')).toBeOnTheScreen();
+    expect(screen.getByText(`${detour.heading} Buses will use Elm St.`)).toBeOnTheScreen();
+  });
 });
 
 describe('Home: loading and errors', () => {

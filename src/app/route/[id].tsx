@@ -19,6 +19,7 @@ import { chosenTrips, offerLabel, routeChoices } from '@/routeFilter';
 import { usePartner, useRouteTrips } from '@/routeTrips';
 import { Collapsible, colors, EASE_OUT, gradient, Hero, Page, PressableScale, PulseDot, shadow, Skeleton, ToggleIcon } from '@/ui';
 import { trackRouteChange } from '@/analytics';
+import { routeStops } from '@/detours';
 
 export default function RouteScreen() {
   const { id, reversed } = useLocalSearchParams<{ id: string; reversed?: string }>();
@@ -178,7 +179,7 @@ function Schedule(props: { route: SavedRoute; reversed: boolean; onSwap: () => v
         </Hero>
       }
     >
-      <Advisories advisories={hasLive ? advisories.filter((a) => !a.id.startsWith('bus-tracking')) : advisories} />
+      <Advisories advisories={hasLive ? advisories.filter((a) => !a.id.startsWith('bus-tracking')) : advisories} stops={routeStops(route)} />
 
       {trips ? (
         <DayTabs

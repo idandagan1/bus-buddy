@@ -27,9 +27,10 @@ import { RouteBadge } from '@/components/RouteBadge';
 import { RouteChips } from '@/components/RouteChips';
 import { chosenTrips, offerLabel, routeChoices } from '@/routeFilter';
 import { usePartner, useRouteTrips } from '@/routeTrips';
-import type { Advisory, SavedRoute, Stop, Trip } from '@/types';
+import type { SavedRoute, Stop, Trip } from '@/types';
 import { colors, EASE_OUT, gradient, Hero, Page, PressableScale, PulseDot, shadow, Skeleton } from '@/ui';
 import { routeProps, track, trackRouteChange } from '@/analytics';
+import { detourLine, detoursNear, isDetour, routeStops } from '@/detours';
 
 // Home stays calm: one short fade, no slides or staggers.
 const CALM = FadeIn.duration(250).easing(EASE_OUT);
@@ -236,8 +237,6 @@ function NextBusHero({ route }: { route: SavedRoute }) {
 
 // Carriers often file a detour as a minor notice (NJ Transit's 166 Tenafly detour was), but it changes where
 // to wait for the bus, so the home card shows it whatever its severity.
-const isDetour = (a: Advisory) => /detour/i.test(`${a.heading} ${a.paragraphs.join(' ')}`);
-
 function RouteCard({ route, onChange, onRemove }: { route: SavedRoute; onChange: (route: SavedRoute) => void; onRemove: () => void }) {
   const [reversed, setReversed] = useState(false);
   const from = reversed ? route.to : route.from;
@@ -249,7 +248,10 @@ function RouteCard({ route, onChange, onRemove }: { route: SavedRoute; onChange:
   const routes = routeChoices(all, route.only);
   const showRoute = routes.length > 0 && route.only?.length !== 1;
   // Each carrier's alerts come from its own trips.
-  const alerts = [...useAdvisories(legs[0]), ...useAdvisories(legs[1])].filter((a) => a.severity === 'high' || isDetour(a));
+  const advisories = [...useAdvisories(legs[0]), ...useAdvisories(legs[1])];
+  // Detours first, saying when one is by the rider's stop; then any other serious alert.
+  const detours = detoursNear(advisories, routeStops(route));
+  const alerts = advisories.filter((a) => a.severity === 'high' && !isDetour(a));
   const now = useNow();
   const statuses = useTripStatuses(trips, now);
   const liveOf = (t: Trip) => summarize(statuses[statusKey(t)], now);
@@ -289,9 +291,15 @@ function RouteCard({ route, onChange, onRemove }: { route: SavedRoute; onChange:
         offer={!route.also && partner ? { label: offerLabel(partner), onPress: () => onChange({ ...route, also: partner, only: undefined }) } : null}
       />
 
+      {detours.map((d) => (
+        <Animated.View key={d.advisory.id} entering={CALM} style={[styles.alert, { backgroundColor: severityStyle.high.soft }]}>
+          <Text style={[styles.alertText, { color: severityStyle.high.color }]} numberOfLines={2}>{`↪️\u00A0 ${detourLine(d)}`}</Text>
+          {d.near && <Text style={styles.alertDetail} numberOfLines={3}>{[d.advisory.heading, ...d.advisory.paragraphs].join(' ')}</Text>}
+        </Animated.View>
+      ))}
       {alerts.map((a) => (
         <Animated.View key={a.id} entering={CALM} style={[styles.alert, { backgroundColor: severityStyle.high.soft }]}>
-          <Text style={[styles.alertText, { color: severityStyle.high.color }]} numberOfLines={1}>{`${isDetour(a) ? '↪️' : '⚠️'}\u00A0 ${a.heading}`}</Text>
+          <Text style={[styles.alertText, { color: severityStyle.high.color }]} numberOfLines={1}>{`⚠️\u00A0 ${a.heading}`}</Text>
         </Animated.View>
       ))}
 
@@ -426,6 +434,7 @@ const styles = StyleSheet.create({
   tripCountdown: { marginLeft: 'auto', color: colors.muted, flexShrink: 0 },
   alert: { borderRadius: 10, paddingVertical: 8, paddingHorizontal: 12 },
   alertText: { fontSize: 13, fontWeight: '700' },
+  alertDetail: { fontSize: 12, color: colors.text, marginTop: 4, lineHeight: 17 },
   muted: { color: colors.muted, fontSize: 14 },
   error: { color: colors.danger },
   actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8, borderTopWidth: 1, borderColor: colors.border, paddingTop: 12 },
