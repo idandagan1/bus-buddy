@@ -120,6 +120,7 @@ function Schedule(props: { route: SavedRoute; reversed: boolean; onSwap: () => v
 
   return (
     <Page
+      refreshable
       onEndReached={() => more && setShown((n) => n + PAGE_SIZE)}
       hero={
         <Hero>

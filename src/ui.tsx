@@ -1,6 +1,6 @@
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useEffect, type ReactNode } from 'react';
+import { Fragment, useEffect, useRef, type ComponentRef, type ReactNode } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, View, type PressableProps, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, {
   Easing,
@@ -11,6 +11,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { useInsets } from '@/insets';
+import { useRefresh } from '@/refresh';
 
 export const colors = {
   bg: '#f3f5fb',
@@ -42,9 +43,17 @@ const END_THRESHOLD = 600;
 // Scrollable page: optional full-bleed hero, then a centered column capped for desktop.
 // The first card tucks up under the hero; pass overlap={false} (to Hero too) when the page starts with a heading instead.
 // onEndReached fires while the rider scrolls near the bottom, for lists that load more as you go.
-export function Page({ children, hero, overlap = true, onEndReached }: { children: ReactNode; hero?: ReactNode; overlap?: boolean; onEndReached?: () => void }) {
+// `refreshable` pages reload when pulled down from the top (refresh.tsx).
+export function Page(props: { children: ReactNode; hero?: ReactNode; overlap?: boolean; onEndReached?: () => void; refreshable?: boolean }) {
+  const { children, hero, overlap = true, onEndReached, refreshable = false } = props;
+  const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
+  const refresh = useRefresh(refreshable, scroll);
   return (
+    <View style={styles.scroll}>
     <ScrollView
+      ref={scroll}
+      testID="page"
+      refreshControl={refresh.control}
       style={styles.scroll}
       contentContainerStyle={styles.outer}
       keyboardShouldPersistTaps="handled"
@@ -56,9 +65,13 @@ export function Page({ children, hero, overlap = true, onEndReached }: { childre
         })
       }
     >
-      {hero}
-      <View style={[styles.inner, hero && overlap ? styles.overlap : null]}>{children}</View>
+      <Fragment key={refresh.key}>
+        {hero}
+        <View style={[styles.inner, hero && overlap ? styles.overlap : null]}>{children}</View>
+      </Fragment>
     </ScrollView>
+    {refresh.indicator}
+    </View>
   );
 }
 

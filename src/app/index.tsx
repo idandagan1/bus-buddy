@@ -72,6 +72,7 @@ export default function Home() {
   return (
     <>
       <Page
+        refreshable
         overlap={!routes?.length}
         hero={
           <Hero overlap={!routes?.length}>
