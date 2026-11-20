@@ -46,7 +46,9 @@ async function get<T>(path: string, params: Record<string, string>): Promise<T> 
       await new Promise((r) => setTimeout(r, RETRY_MS));
       continue;
     }
-    if (res.ok) return res.json();
+    if (res.ok) return res.json().catch(() => {
+      throw new Error(`coachusa ${path} → not JSON`);
+    });
     if (last || !retryable(res.status)) throw new Error(`coachusa ${path} → ${res.status}`);
     await new Promise((r) => setTimeout(r, RETRY_MS));
   }
@@ -55,8 +57,8 @@ async function get<T>(path: string, params: Record<string, string>): Promise<T> 
 const toStop = (r: RawStop): Stop => ({
   id: r.id,
   name: r.stop.name,
-  town: r.place.name,
-  state: r.place.state.code,
+  town: r.place?.name ?? '',
+  state: r.place?.state?.code ?? '',
   latitude: Number(r.location.latitude),
   longitude: Number(r.location.longitude),
 });
@@ -82,7 +84,7 @@ export async function searchStops(query: string, origin?: string): Promise<Stop[
   const results = origin ? (await get<{ results: RawStop[] }>('/journey/location', { origin })).results : await getPickups().raw;
   const words = query.toLowerCase().split(/\s+/).filter(Boolean);
   const matches = results.filter((r) => {
-    const text = `${r.stop.name} ${r.place.name} ${r.place.state.code}`.toLowerCase();
+    const text = `${r.stop?.name ?? ''} ${r.place?.name ?? ''} ${r.place?.state?.code ?? ''}`.toLowerCase();
     return words.every((w) => text.includes(w));
   });
   return matches.map(toStop);

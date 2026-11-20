@@ -25,7 +25,7 @@ import { statusKey, summarize, useTripStatuses, type LiveSummary } from '@/live'
 import { RoutePlanner } from '@/components/RoutePlanner';
 import { RouteBadge } from '@/components/RouteBadge';
 import { RouteChips } from '@/components/RouteChips';
-import { chosenTrips, routeChoices, routeLabel } from '@/routeFilter';
+import { chosenTrips, linesOf, offerLabel, pickLines, routeChoices, routeLabel } from '@/routeFilter';
 import { usePartner, useRouteTrips } from '@/routeTrips';
 import type { Advisory, SavedRoute, Stop, Trip } from '@/types';
 import { colors, EASE_OUT, gradient, Hero, Page, PressableScale, PulseDot, shadow, Skeleton } from '@/ui';
@@ -266,8 +266,13 @@ function RouteCard({ route, onChange, onRemove }: { route: SavedRoute; onChange:
         </PressableScale>
       </View>
 
-      <RouteChips trips={all} only={route.only} onChange={(only) => onChange({ ...route, only })} />
-      <AlsoToggle route={route} partner={partner} onChange={onChange} />
+      <RouteChips
+        trips={all}
+        only={route.only}
+        onChange={(only) => onChange(pickLines(route, only, linesOf(legs[0]), linesOf(legs[1])))}
+        // Route choices were made among the old set of buses, so they start over.
+        offer={!route.also && partner ? { label: offerLabel(partner), onPress: () => onChange({ ...route, also: partner, only: undefined }) } : null}
+      />
 
       {alerts.map((a) => (
         <Animated.View key={a.id} entering={CALM} style={[styles.alert, { backgroundColor: severityStyle.high.soft }]}>
@@ -310,26 +315,6 @@ function RouteCard({ route, onChange, onRemove }: { route: SavedRoute; onChange:
           <Text style={[styles.action, { color: colors.danger }]}>✕  Remove</Text>
         </PressableScale>
       </View>
-    </PressableScale>
-  );
-}
-
-const carrierName = (leg: { from: Stop }) => (leg.from.carrier === 'NJT' ? 'NJ Transit' : 'Coach USA');
-
-// Offers the other carrier's buses from the same corner (NJ Transit's 166 beside Coach USA's 20), for riders
-// who take whichever comes first; once added, the same pill takes them off again.
-function AlsoToggle({ route, partner, onChange }: { route: SavedRoute; partner: SavedRoute['also'] | null | undefined; onChange: (route: SavedRoute) => void }) {
-  const leg = route.also ?? partner;
-  if (!leg) return null;
-  const lines = leg.from.carrier === 'NJT' && leg.to.routes?.length ? ` ${leg.to.routes.join(', ')}` : '';
-  const on = !!route.also;
-  // Route choices were made among the old set of buses, so they start over.
-  const toggle = () => onChange({ ...route, also: on ? undefined : leg, only: undefined });
-  return (
-    <PressableScale onPress={toggle} hitSlop={4} accessibilityRole="switch" accessibilityState={{ checked: on }} style={[styles.also, on && styles.alsoOn]}>
-      <Text style={[styles.alsoText, on && styles.alsoTextOn]} numberOfLines={1}>
-        {on ? `✓ With ${carrierName(leg)}${lines} from this corner` : `＋ Add ${carrierName(leg)}${lines} from this corner`}
-      </Text>
     </PressableScale>
   );
 }
@@ -402,10 +387,6 @@ const styles = StyleSheet.create({
   glassTime: { color: '#fff', fontSize: 20, fontWeight: '700' },
   glassLive: { color: '#a7f3d0', fontSize: 13, fontWeight: '600', marginTop: 6 },
   tags: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  also: { alignSelf: 'flex-start', borderRadius: 999, borderWidth: 1, borderStyle: 'dashed', borderColor: colors.primary, paddingVertical: 6, paddingHorizontal: 12 },
-  alsoOn: { borderStyle: 'solid', backgroundColor: colors.primarySoft },
-  alsoText: { color: colors.primary, fontSize: 13, fontWeight: '700' },
-  alsoTextOn: { color: colors.primary },
   delay: { borderRadius: 8, paddingHorizontal: 6, paddingVertical: 1 },
   delayText: { fontSize: 12, fontWeight: '700' },
   mapButton: { marginLeft: 'auto', borderRadius: 12, paddingVertical: 6, paddingHorizontal: 12, backgroundColor: 'rgba(255,255,255,0.18)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)' },

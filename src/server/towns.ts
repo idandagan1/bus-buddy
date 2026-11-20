@@ -55,7 +55,8 @@ export function groupCorners(coach: Stop[], njt: Stop[]): Stop[] {
   for (const c of coach) {
     out.push(c);
     for (const n of njt) {
-      if (placed.has(n) || distanceMeters(c, n) > CORNER_M) continue;
+      // Written so a stop with bad coordinates (NaN distance) is never on the corner.
+      if (placed.has(n) || !(distanceMeters(c, n) <= CORNER_M)) continue;
       placed.add(n);
       out.push({ ...n, sameCorner: true });
     }

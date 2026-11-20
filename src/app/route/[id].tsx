@@ -15,8 +15,8 @@ import type { SavedRoute, Trip } from '@/types';
 import { DayTabs } from '@/components/DayTabs';
 import { RouteChips } from '@/components/RouteChips';
 import { RouteBadge } from '@/components/RouteBadge';
-import { chosenTrips, routeChoices } from '@/routeFilter';
-import { useRouteTrips } from '@/routeTrips';
+import { chosenTrips, linesOf, offerLabel, pickLines, routeChoices } from '@/routeFilter';
+import { usePartner, useRouteTrips } from '@/routeTrips';
 import { Collapsible, colors, EASE_OUT, gradient, Hero, Page, PressableScale, PulseDot, shadow, Skeleton, ToggleIcon } from '@/ui';
 
 export default function RouteScreen() {
@@ -28,11 +28,10 @@ export default function RouteScreen() {
   }, [id]);
 
   // Saved with the route, so the home card shows the same buses.
-  async function choose(only: string[] | undefined) {
-    if (!route) return;
-    setRoute({ ...route, only });
+  async function change(next: SavedRoute) {
+    setRoute(next);
     const routes = await loadRoutes();
-    await saveRoutes(routes.map((r) => (r.id === route.id ? { ...r, only } : r)));
+    await saveRoutes(routes.map((r) => (r.id === next.id ? next : r)));
   }
 
   const isReversed = reversed === '1';
@@ -44,8 +43,7 @@ export default function RouteScreen() {
           route={route}
           reversed={isReversed}
           onSwap={() => router.setParams({ reversed: isReversed ? '0' : '1' })}
-          only={route.only}
-          onChoose={choose}
+          onChange={change}
         />
       ) : (
         <Page hero={<Hero><Skeleton height={60} style={{ backgroundColor: 'rgba(255,255,255,0.15)' }} /></Hero>}>{null}</Page>
@@ -54,8 +52,10 @@ export default function RouteScreen() {
   );
 }
 
-function Schedule(props: { route: SavedRoute; reversed: boolean; onSwap: () => void; mapLink: MapLink; only?: string[]; onChoose: (only: string[] | undefined) => void }) {
-  const { route, reversed, onSwap, mapLink, only, onChoose } = props;
+function Schedule(props: { route: SavedRoute; reversed: boolean; onSwap: () => void; mapLink: MapLink; onChange: (route: SavedRoute) => void }) {
+  const { route, reversed, onSwap, mapLink, onChange } = props;
+  const { only } = route;
+  const partner = usePartner(route);
   const from = reversed ? route.to : route.from;
   const to = reversed ? route.from : route.to;
   const { trips: all, error, offline, cachedAt, reload, legs } = useRouteTrips(route, reversed);
@@ -87,6 +87,12 @@ function Schedule(props: { route: SavedRoute; reversed: boolean; onSwap: () => v
   const resetList = () => {
     setShown(PAGE_SIZE);
     setShowEarlier(false);
+  };
+  // Another set of buses starts the list over.
+  const restart = () => {
+    setDay(null);
+    setExpanded(null);
+    resetList();
   };
 
   const spin = useSharedValue(0);
@@ -141,11 +147,20 @@ function Schedule(props: { route: SavedRoute; reversed: boolean; onSwap: () => v
               only={only}
               onDark
               onChange={(next) => {
-                setDay(null);
-                setExpanded(null);
-                resetList();
-                onChoose(next);
+                restart();
+                onChange(pickLines(route, next, linesOf(legs[0]), linesOf(legs[1])));
               }}
+              offer={
+                !route.also && partner
+                  ? {
+                      label: offerLabel(partner),
+                      onPress: () => {
+                        restart();
+                        onChange({ ...route, also: partner, only: undefined });
+                      },
+                    }
+                  : null
+              }
             />
           </View>
         </Hero>

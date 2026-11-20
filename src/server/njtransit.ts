@@ -59,6 +59,9 @@ function loadRoute(origin: string, id: string) {
 const stationId = (id: string) => id.slice(ID_PREFIX.length);
 
 // `code` is the stop number to show: the one searched for, else the station's first.
+// A station's routes; one no route serves has none (not one blank route).
+const routesOf = (s: Station) => s[5].split(' ').filter(Boolean);
+
 const toStop = (idx: Index, s: Station, only: Set<string> | null, town: Town | null, code = s[6]?.split(' ')[0]): Stop => ({
   id: ID_PREFIX + s[0],
   name: s[1],
@@ -68,7 +71,7 @@ const toStop = (idx: Index, s: Station, only: Set<string> | null, town: Town | n
   longitude: s[3],
   carrier: CARRIER_CODE,
   code,
-  routes: [...new Set(s[5].split(' ').filter((r) => !only || only.has(r)).map((r) => idx.routes[r] ?? r))].sort(
+  routes: [...new Set(routesOf(s).filter((r) => !only || only.has(r)).map((r) => idx.routes[r] ?? r))].sort(
     (a, b) => parseInt(a) - parseInt(b) || a.localeCompare(b),
   ),
 });
@@ -84,8 +87,8 @@ export async function searchStops(origin: string, query: string, from?: string, 
   if (from) {
     const start = stations.find((s) => s[0] === stationId(from));
     if (!start) return [];
-    const served = (routes = new Set(start[5].split(' ')));
-    candidates = stations.filter((s) => s !== start && s[5].split(' ').some((r) => served.has(r)));
+    const served = (routes = new Set(routesOf(start)));
+    candidates = stations.filter((s) => s !== start && routesOf(s).some((r) => served.has(r)));
   } else if (!words.length) {
     return [];
   }
@@ -127,10 +130,10 @@ export async function reachableNear(origin: string, from: string, latitude: numb
   const idx = await loadIndex(origin);
   const start = idx.stations.find((s) => s[0] === stationId(from));
   if (!start) return null;
-  const served = new Set(start[5].split(' '));
+  const served = new Set(routesOf(start));
   let best: { s: Station; m: number } | null = null;
   for (const s of idx.stations) {
-    if (s === start || !s[5].split(' ').some((r) => served.has(r))) continue;
+    if (s === start || !routesOf(s).some((r) => served.has(r))) continue;
     const m = distanceMeters({ latitude, longitude }, { latitude: s[2], longitude: s[3] });
     if (m <= maxM && (!best || m < best.m)) best = { s, m };
   }
@@ -191,7 +194,7 @@ function stopsNear(stations: Station[], station: Station) {
   const near = stations.filter(
     (s) => Math.abs(s[2] - here.latitude) <= dLat && Math.abs(s[3] - here.longitude) <= dLon && distanceMeters(here, { latitude: s[2], longitude: s[3] }) <= NEARBY_M,
   );
-  return { stops: new Set(near.flatMap((s) => s[4].split(' '))), routes: new Set(near.flatMap((s) => s[5].split(' '))) };
+  return { stops: new Set(near.flatMap((s) => s[4].split(' '))), routes: new Set(near.flatMap((s) => routesOf(s))) };
 }
 
 // Indexes of up to `max` stops between i and j, always both ends, spread evenly along the way.

@@ -6,7 +6,8 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const place = (name: string) => {
     const [id, lat, lon] = (url.searchParams.get(name) ?? '').split(',');
-    return { id, latitude: Number(lat), longitude: Number(lon) };
+    // A blank coordinate isn't 0.
+    return { id, latitude: lat?.trim() ? Number(lat) : NaN, longitude: lon?.trim() ? Number(lon) : NaN };
   };
   const from = place('from');
   const to = place('to');

@@ -1,7 +1,7 @@
 // Picking which buses of a saved route to show: the 166 runs as a local (166), an I-95 express (166X) and a
 // Turnpike express (166T) between the same stops, from different gates at Port Authority, and riders usually
 // want one of them.
-import type { SavedRoute, Trip } from './types';
+import type { Leg, SavedRoute, Trip } from './types';
 
 const byNumber = (a: string, b: string) => parseInt(a) - parseInt(b) || a.localeCompare(b);
 
@@ -36,3 +36,20 @@ export function routeLabel(route: string, carrierCode: string, routes: string[])
   const hasExpress = routes.some((r) => r !== route && r.startsWith(route) && /^[XT]$/.test(r.slice(route.length)));
   return hasExpress ? { label: `${route} Local`, kind: 'local' } : { label: route, kind: 'plain' };
 }
+
+// Choosing lines on a route that has the other carrier added: leaving out every one of its lines takes the other
+// carrier off again (and the chip goes back to offering it). `own` and `extra` are each carrier's lines.
+export function pickLines(route: SavedRoute, only: string[] | undefined, own: string[], extra: string[]): SavedRoute {
+  if (!route.also || !only?.length || only.some((r) => extra.includes(r))) return { ...route, only };
+  return { ...route, also: undefined, only: only.length < own.length ? only : undefined };
+}
+
+// The dashed chip offering the other carrier's buses from the same corner: its lines when known (NJ Transit's
+// stops list them), otherwise just its name.
+export function offerLabel(leg: Leg) {
+  if (leg.from.carrier !== 'NJT') return '+ Coach USA';
+  return leg.to.routes?.length ? `+ ${leg.to.routes.join(' / ')} NJT` : '+ NJ Transit';
+}
+
+// Every line in a list of trips.
+export const linesOf = (trips: Trip[] | null) => [...new Set((trips ?? []).map((t) => t.route))];
