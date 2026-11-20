@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { handoffRoutesForIos, useInstall } from '@/install';
 import { colors, PressableScale, shadow } from '@/ui';
+import { track } from '@/analytics';
 
 // A card offering to put the web app on the home screen. Native and already-installed apps never show it.
 export function InstallCard() {
@@ -11,6 +12,7 @@ export function InstallCard() {
   if (!mode) return null;
 
   function add() {
+    track('install_card_tapped', { mode });
     if (mode === 'prompt') return install();
     handoffRoutesForIos();
     setSteps(true);
@@ -24,7 +26,7 @@ export function InstallCard() {
           <Text style={styles.title}>Add Bus Buddy to your Home Screen</Text>
           <Text style={styles.body}>Opens like an app, one tap away.</Text>
         </View>
-        <PressableScale onPress={dismiss} hitSlop={10} accessibilityLabel="Not now">
+        <PressableScale onPress={() => (track('install_card_dismissed'), dismiss())} hitSlop={10} accessibilityLabel="Not now">
           <Text style={styles.close}>✕</Text>
         </PressableScale>
       </View>

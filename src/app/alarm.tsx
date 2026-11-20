@@ -11,6 +11,7 @@ import { showToast } from '@/components/Toast';
 import { AlarmEditor } from '@/components/AlarmEditor';
 import { distanceToStop, formatDistance } from '@/geo';
 import { loadArmedTrip, type ArmedTrip } from '@/storage';
+import { track } from '@/analytics';
 
 const leave = () => (router.canGoBack() ? router.back() : router.replace('/'));
 
@@ -52,6 +53,7 @@ export default function AlarmScreen() {
   const distance = trip && here ? distanceToStop(here, trip) : null;
 
   function cancel() {
+    track('alarm_cancelled');
     showToast('Alarm cancelled');
     disarm();
   }

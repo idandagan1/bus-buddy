@@ -1,10 +1,18 @@
+import { useEffect } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
+import { track } from '@/analytics';
 import { formatTime } from '@/api';
 import { colors, PressableScale } from '@/ui';
 
 // Shown when there's nothing to display: no connection or a failed request, and nothing saved.
 export function ErrorState({ offline, message, onRetry, compact }: { offline: boolean; message?: string | null; onRetry: () => void; compact?: boolean }) {
+  // Counted each time a rider actually sees it (and each Try again), not every failed background refresh.
+  useEffect(() => track('error_shown', { message: message ?? null, offline, compact: !!compact }), [message, offline, compact]);
+  const retry = () => {
+    track('error_retry', { message: message ?? null, offline });
+    onRetry();
+  };
   return (
     <Animated.View entering={FadeIn.duration(250)} style={[styles.box, compact && styles.compact]}>
       <Text style={[styles.icon, compact && styles.iconCompact]}>{offline ? '📡' : '⚠️'}</Text>
@@ -14,7 +22,7 @@ export function ErrorState({ offline, message, onRetry, compact }: { offline: bo
           ? "Connect to Wi-Fi or mobile data. We'll refresh automatically when you're back online."
           : (message ?? 'The server is not responding right now.') + ' Try again in a moment.'}
       </Text>
-      <PressableScale onPress={onRetry} style={styles.retry}>
+      <PressableScale onPress={retry} style={styles.retry}>
         <Text style={styles.retryText}>Try again</Text>
       </PressableScale>
     </Animated.View>

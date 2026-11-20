@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useOnline } from '@/network';
 import type { Advisory, Leg, SavedRoute, Stop, Trip } from '@/types';
+import { track } from '@/analytics';
 
 const TZ = 'America/New_York';
 
@@ -46,7 +47,9 @@ async function getJson<T>(url: string, what: string): Promise<T> {
     try {
       res = await fetch(url, { signal: abort.signal });
     } catch {
-      throw abort.signal.aborted ? new Error(`Couldn't load ${what}: the request timed out.`) : new OfflineError();
+      const timedOut = abort.signal.aborted;
+      track('load_failed', { what, reason: timedOut ? 'timeout' : 'offline' });
+      throw timedOut ? new Error(`Couldn't load ${what}: the request timed out.`) : new OfflineError();
     } finally {
       clearTimeout(timer);
     }
@@ -58,6 +61,7 @@ async function getJson<T>(url: string, what: string): Promise<T> {
     // API routes say which upstream failed; anything else (no JSON body) is our own server.
     const body: { source?: string } | null = await res.json().catch(() => null);
     const name = body?.source && SOURCE_NAMES[body.source];
+    track('load_failed', { what, reason: body?.source ?? 'server', status: res.status });
     throw new Error(name ? `Couldn't load ${what}: ${name} isn't responding.` : `Couldn't load ${what}: the Bus Buddy server had a hiccup.`);
   }
 }

@@ -1,4 +1,4 @@
-import { Stack } from 'expo-router';
+import { Stack, useSegments } from 'expo-router';
 import Head from 'expo-router/head';
 import { useEffect } from 'react';
 import { AppState, View } from 'react-native';
@@ -9,8 +9,13 @@ import { Welcome } from '@/components/Welcome';
 // On the web: home-screen icons and the install prompt, and saved routes handed over to a new home-screen app.
 import '@/install';
 import { colors } from '@/ui';
+import { trackScreen } from '@/analytics';
 
 export default function RootLayout() {
+  // Screens by their route ("/route/[id]"), not each route's id.
+  const screen = `/${useSegments().join('/')}`;
+  useEffect(() => trackScreen(screen), [screen]);
+
   useEffect(() => {
     syncTracking().catch(() => {});
     const sub = AppState.addEventListener('change', (state) => state === 'active' && syncTracking().catch(() => {}));

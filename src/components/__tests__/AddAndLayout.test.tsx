@@ -7,6 +7,7 @@ import { loadRoutes } from '@/api';
 import AddRoute from '@/app/add';
 import RootLayout from '@/app/_layout';
 import type { SavedRoute, Stop } from '@/types';
+import { trackScreen } from '@/analytics';
 
 jest.mock('react-native-reanimated', () => jest.requireActual('./reanimatedMock'));
 jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
@@ -19,12 +20,14 @@ jest.mock('expo-router', () => {
   return {
     router: { push: jest.fn(), back: jest.fn(), replace: jest.fn(), canGoBack: jest.fn() },
     useLocalSearchParams: jest.fn(),
+    useSegments: jest.fn(() => ['route', '[id]']),
     Stack,
   };
 });
 jest.mock('expo-router/head', () => () => null);
 jest.mock('@/alarm', () => ({ syncTracking: jest.fn() }));
 jest.mock('@/install', () => ({}));
+jest.mock('@/analytics', () => ({ trackScreen: jest.fn(), track: jest.fn(), routeProps: jest.fn(() => ({})) }));
 jest.mock('@/components/OfflineBanner', () => ({ OfflineBanner: () => null }));
 jest.mock('@/components/Toast', () => ({ Toast: () => null }));
 jest.mock('@/components/Welcome', () => ({ Welcome: () => null }));
@@ -161,6 +164,8 @@ describe('Root layout', () => {
       expect(screen.getByText(`screen:${name}`)).toBeOnTheScreen();
     }
     expect(syncTracking).toHaveBeenCalledTimes(1);
+    // Screens are counted by route, not by each saved route's id.
+    expect(trackScreen).toHaveBeenCalledWith('/route/[id]');
 
     onChange('background');
     expect(syncTracking).toHaveBeenCalledTimes(1);

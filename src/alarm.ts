@@ -5,6 +5,7 @@ import { cancelAlarm, isAlarmKitAvailable, requestAlarmAuthorization, scheduleAl
 import { distanceMeters, distanceToStop, pointBeforeEnd } from './geo';
 import { alarmSound, loadSettings } from './settings';
 import { loadArmedTrip, saveArmedTrip, type AlarmOptions, type ArmedTrip, type Destination } from './storage';
+import { track } from './analytics';
 
 const LOCATION_TASK = 'wake-location-updates';
 const GEOFENCE_TASK = 'wake-geofence';
@@ -155,6 +156,7 @@ export async function arm(dest: Destination, { radius, backupMin }: AlarmOptions
   const due = dueAt?.getTime();
   const backupAt = backupTime(due, backupMin);
   await setTrip({ ...dest, radius, dueAt: due, backupMin, backupAt, armedAt: Date.now() });
+  track('alarm_set', { radius_m: radius, backup_min: backupMin, has_due_time: due != null });
   await scheduleBackup(dest, backupAt);
   await Location.startLocationUpdatesAsync(LOCATION_TASK, {
     accuracy: Location.Accuracy.High,

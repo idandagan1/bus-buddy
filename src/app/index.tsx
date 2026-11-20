@@ -29,6 +29,7 @@ import { chosenTrips, offerLabel, routeChoices } from '@/routeFilter';
 import { usePartner, useRouteTrips } from '@/routeTrips';
 import type { Advisory, SavedRoute, Stop, Trip } from '@/types';
 import { colors, EASE_OUT, gradient, Hero, Page, PressableScale, PulseDot, shadow, Skeleton } from '@/ui';
+import { routeProps, track, trackRouteChange } from '@/analytics';
 
 // Home stays calm: one short fade, no slides or staggers.
 const CALM = FadeIn.duration(250).easing(EASE_OUT);
@@ -62,7 +63,11 @@ export default function Home() {
     await saveRoutes(next);
   }
 
-  const addFirst = (from: Stop, to: Stop) => update([{ id: String(Date.now()), from, to }]);
+  function addFirst(from: Stop, to: Stop) {
+    const route = { id: String(Date.now()), from, to };
+    track('route_added', { ...routeProps(route), first: true });
+    return update([route]);
+  }
 
   return (
     <>
@@ -125,8 +130,14 @@ export default function Home() {
           >
             <RouteCard
               route={r}
-              onChange={(changed) => update(routes.map((x) => (x.id === r.id ? changed : x)))}
-              onRemove={() => update(routes.filter((x) => x.id !== r.id))}
+              onChange={(changed) => {
+                trackRouteChange(r, changed, 'home');
+                update(routes.map((x) => (x.id === r.id ? changed : x)));
+              }}
+              onRemove={() => {
+                track('route_removed', routeProps(r));
+                update(routes.filter((x) => x.id !== r.id));
+              }}
             />
           </Animated.View>
         ))}

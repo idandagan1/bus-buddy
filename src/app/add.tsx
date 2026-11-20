@@ -6,6 +6,7 @@ import { loadRoutes, saveRoutes } from '@/api';
 import { RoutePlanner } from '@/components/RoutePlanner';
 import type { SavedRoute, Stop } from '@/types';
 import { EASE_OUT, Hero, Page } from '@/ui';
+import { routeProps, track } from '@/analytics';
 
 export default function AddRoute() {
   const { edit } = useLocalSearchParams<{ edit?: string }>();
@@ -26,6 +27,8 @@ export default function AddRoute() {
         })
       : [...routes, { id: String(Date.now()), from, to }];
     await saveRoutes(next);
+    const saved = editing ? next.find((r) => r.id === editing.id) : next.at(-1);
+    if (saved) track(editing ? 'route_edited' : 'route_added', routeProps(saved));
     if (router.canGoBack()) router.back();
     else router.replace('/');
   }

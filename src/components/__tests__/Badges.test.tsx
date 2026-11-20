@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
+import { track } from '@/analytics';
 import { formatTime } from '@/api';
 import type { Stop, Trip } from '@/types';
 import { CarrierTag } from '../CarrierTag';
@@ -7,6 +8,7 @@ import { GateBadge } from '../GateBadge';
 import { RouteBadge } from '../RouteBadge';
 
 jest.mock('react-native-reanimated', () => jest.requireActual('./reanimatedMock'));
+jest.mock('@/analytics', () => ({ track: jest.fn() }));
 
 const stop = (carrier?: 'NJT') => ({ id: 's', name: 'Stop', town: 'Tenafly', state: 'NJ', latitude: 0, longitude: 0, carrier }) as Stop;
 const trip = (route: string, carrierCode = 'NJT') => ({ route, carrierCode }) as Trip;
@@ -69,6 +71,23 @@ describe('CarrierTag removal', () => {
 });
 
 describe('ErrorState', () => {
+  it('reports each time a rider sees it, and each Try again', async () => {
+    jest.mocked(track).mockClear();
+    const onRetry = jest.fn();
+    const message = "Couldn't load the schedule: Coach USA isn't responding.";
+    await render(<ErrorState offline={false} message={message} onRetry={onRetry} compact />);
+    expect(track).toHaveBeenCalledWith('error_shown', { message, offline: false, compact: true });
+    await fireEvent.press(screen.getByText('Try again'));
+    expect(track).toHaveBeenCalledWith('error_retry', { message, offline: false });
+    expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports being offline, without a message', async () => {
+    jest.mocked(track).mockClear();
+    await render(<ErrorState offline onRetry={jest.fn()} />);
+    expect(track).toHaveBeenCalledWith('error_shown', { message: null, offline: true, compact: false });
+  });
+
   it('explains being offline and ignores the message', async () => {
     await render(<ErrorState offline message="Boom" onRetry={jest.fn()} />);
     expect(screen.getByText('No internet connection')).toBeOnTheScreen();

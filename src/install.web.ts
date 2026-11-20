@@ -4,6 +4,7 @@
 // the URL it's added with and are copied in on its first launch.
 import { useSyncExternalStore } from 'react';
 import { installGuide } from './installSteps';
+import { track } from './analytics';
 
 export type InstallMode = 'prompt' | 'steps' | null;
 
@@ -69,6 +70,7 @@ if (browser) {
     changed();
   });
   window.addEventListener('appinstalled', () => {
+    track('app_installed');
     installed = true;
     deferred = null;
     changed();

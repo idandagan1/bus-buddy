@@ -18,6 +18,7 @@ import { RouteBadge } from '@/components/RouteBadge';
 import { chosenTrips, offerLabel, routeChoices } from '@/routeFilter';
 import { usePartner, useRouteTrips } from '@/routeTrips';
 import { Collapsible, colors, EASE_OUT, gradient, Hero, Page, PressableScale, PulseDot, shadow, Skeleton, ToggleIcon } from '@/ui';
+import { trackRouteChange } from '@/analytics';
 
 export default function RouteScreen() {
   const { id, reversed } = useLocalSearchParams<{ id: string; reversed?: string }>();
@@ -29,6 +30,7 @@ export default function RouteScreen() {
 
   // Saved with the route, so the home card shows the same buses.
   async function change(next: SavedRoute) {
+    if (route) trackRouteChange(route, next, 'schedule');
     setRoute(next);
     const routes = await loadRoutes();
     await saveRoutes(routes.map((r) => (r.id === next.id ? next : r)));
