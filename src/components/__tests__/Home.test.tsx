@@ -5,6 +5,7 @@ import { Alert, Platform } from 'react-native';
 import { loadRoutes, useAdvisories } from '@/api';
 import Home from '@/app/index';
 import { useDirection } from '@/direction';
+import { useWeather } from '@/weather';
 import { useFirstRun } from '@/firstRun';
 import { useTripStatuses } from '@/live';
 import { usePartner, useRouteTrips } from '@/routeTrips';
@@ -20,6 +21,7 @@ jest.mock('@/api', () => ({ ...jest.requireActual('@/api'), useAdvisories: jest.
 jest.mock('@/routeTrips', () => ({ useRouteTrips: jest.fn(), usePartner: jest.fn() }));
 jest.mock('@/live', () => ({ ...jest.requireActual('@/live'), useTripStatuses: jest.fn() }));
 jest.mock('@/direction', () => ({ useDirection: jest.fn() }));
+jest.mock('@/weather', () => ({ ...jest.requireActual('@/weather'), useWeather: jest.fn() }));
 jest.mock('@/firstRun', () => ({ useFirstRun: jest.fn(), finishNudge: jest.fn() }));
 jest.mock('@/components/InstallCard', () => {
   const { Text } = jest.requireActual('react-native');
@@ -146,6 +148,7 @@ beforeEach(async () => {
   jest.mocked(useTripStatuses).mockImplementation(() => statuses);
   jest.mocked(useDirection).mockImplementation((route) => ({ from: route.from, to: route.to, reversed: false }));
   jest.mocked(useAdvisories).mockReturnValue([]);
+  jest.mocked(useWeather).mockReturnValue(null);
   jest.mocked(useFirstRun).mockReturnValue({ welcome: false, nudge: false });
 });
 
@@ -431,6 +434,44 @@ describe('Home: loading and errors', () => {
     await save([{ id: 'r1', from: pabt, to: tenafly }]);
     await show();
     expect(screen.getByText('No more buses in the next few days.')).toBeOnTheScreen();
+  });
+});
+
+describe('Home: weather', () => {
+  // The first bus leaves at 12:45 PM and arrives at 1:35 PM (New York).
+  const hourAt = (min: number, rain: number) => ({ time: iso(NOW + min * MIN), rain });
+
+  it('shows today’s sky as an icon, and no umbrella on a dry ride', async () => {
+    jest.mocked(useWeather).mockReturnValue({ source: 'open-meteo', today: 'partly', hours: [hourAt(60, 10)] });
+    await save([{ id: 'r1', from: pabt, to: tenafly }]);
+    await show();
+    expect(screen.getByText('⛅ Partly cloudy in New York')).toBeOnTheScreen();
+    expect(screen.queryByText(/umbrella/)).toBeNull();
+  });
+
+  it('reminds to bring an umbrella when rain is likely during the next ride', async () => {
+    jest.mocked(useWeather).mockReturnValue({ source: 'nws', today: 'rain', hours: [hourAt(0, 30), hourAt(60, 70)] });
+    await save([{ id: 'r1', from: pabt, to: tenafly }]);
+    await show();
+    expect(screen.getByText('☔ Rain likely around 1 PM, bring an umbrella')).toBeOnTheScreen();
+    expect(screen.getByText('🌧️ Rain in New York')).toBeOnTheScreen();
+  });
+
+  it('names the town the rider is leaving from, going home too', async () => {
+    jest.mocked(useWeather).mockReturnValue({ source: 'open-meteo', today: 'clear', hours: [] });
+    jest.mocked(useDirection).mockImplementation((route) => ({ from: route.to, to: route.from, reversed: true }));
+    await save([{ id: 'r1', from: pabt, to: tenafly }]);
+    await show();
+    expect(screen.getByText('☀️ Sunny in Tenafly')).toBeOnTheScreen();
+  });
+
+  it('shows nothing while the weather is unknown, or with no sky for today', async () => {
+    await save([{ id: 'r1', from: pabt, to: tenafly }]);
+    await show();
+    expect(screen.queryByText(/ in New York$/)).toBeNull();
+    jest.mocked(useWeather).mockReturnValue({ source: 'nws', today: null, hours: [] });
+    await show();
+    expect(screen.queryByText(/ in New York$/)).toBeNull();
   });
 });
 

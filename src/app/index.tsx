@@ -32,6 +32,7 @@ import type { SavedRoute, Stop, Trip } from '@/types';
 import { Collapsible, colors, EASE_OUT, gradient, Hero, Page, PressableScale, PulseDot, shadow, Skeleton } from '@/ui';
 import { routeProps, track, trackRouteChange } from '@/analytics';
 import { detourLine, detoursNear, isDetour, routeStops } from '@/detours';
+import { formatHour, rainDuring, SKY, useWeather } from '@/weather';
 
 // Home stays calm: one short fade, no slides or staggers.
 const CALM = FadeIn.duration(250).easing(EASE_OUT);
@@ -80,12 +81,15 @@ export default function Home() {
           <Hero overlap={!routes?.length}>
             <View style={styles.heroTop}>
               <Animated.Text style={styles.greeting}>{greeting} 👋</Animated.Text>
-              {/* Settings are all for the wake-up alarm, which needs the iPhone app; the website hides them. */}
-              {Platform.OS !== 'web' && (
-                <PressableScale onPress={() => router.push('/settings')} hitSlop={10} style={styles.gear}>
-                  <Text style={styles.gearIcon}>⚙︎</Text>
-                </PressableScale>
-              )}
+              <View style={styles.heroTopRight}>
+                {routes?.[0] && <TodaySky route={routes[0]} />}
+                {/* Settings are all for the wake-up alarm, which needs the iPhone app; the website hides them. */}
+                {Platform.OS !== 'web' && (
+                  <PressableScale onPress={() => router.push('/settings')} hitSlop={10} style={styles.gear}>
+                    <Text style={styles.gearIcon}>⚙︎</Text>
+                  </PressableScale>
+                )}
+              </View>
             </View>
             {routes?.[0] ? (
               <NextBusHero route={routes[0]} />
@@ -165,6 +169,19 @@ function confirmRemove(name: string, onConfirm: () => void) {
   ]);
 }
 
+// Today's weather in the town the rider is leaving from ("☁️ Cloudy in Tenafly"), beside the greeting.
+function TodaySky({ route }: { route: SavedRoute }) {
+  const { from } = useDirection(route);
+  const sky = useWeather(from)?.today;
+  if (!sky) return null;
+  const place = from.town || from.name;
+  return (
+    <Animated.Text entering={CALM} style={styles.sky} numberOfLines={1}>
+      {`${SKY[sky].icon} ${SKY[sky].label} in ${place}`}
+    </Animated.Text>
+  );
+}
+
 // Live h:mm:ss countdown to the very next bus on the first saved route, in the direction the rider is likely headed.
 // Owns the hero title too: with nothing to count down to (failed load, no buses left) it says so instead of
 // promising a "next bus" over an empty space.
@@ -190,6 +207,9 @@ function NextBusHero({ route }: { route: SavedRoute }) {
   const next = trips?.find((t) => new Date(liveOf(t)?.departure ?? t.departure).getTime() > now);
   const live = next ? liveOf(next) : null;
   const sooner = next ? soonerHidden(all, route.only, live?.departure ?? next.departure, now) : null;
+  // Rain at either end while riding the next bus.
+  const weather = [useWeather(from), useWeather(to)];
+  const rain = next ? rainDuring(weather, live?.departure ?? next.departure, live?.arrival ?? next.arrival) : null;
 
   // A failed load with nothing cached would otherwise leave the skeleton up for good; the route card shows the error.
   if (!trips && (error || loadingTooLong)) return <Animated.Text style={styles.title}>Your buses</Animated.Text>;
@@ -232,6 +252,7 @@ function NextBusHero({ route }: { route: SavedRoute }) {
             <Text style={styles.glassSub}>{next.gate ? `Gate ${next.gate} · ` : ''}arrives {formatTime(live?.arrival ?? next.arrival)}</Text>
           </View>
         </View>
+        {rain && <Text style={styles.glassRain} numberOfLines={2}>{`☔ Rain likely around ${formatHour(rain)}, bring an umbrella`}</Text>}
         {sooner && <Text style={styles.glassSooner} numberOfLines={1}>{`A ${sooner.route} leaves sooner, at ${formatTime(sooner.departure)}`}</Text>}
       </Animated.View>
     </>
@@ -401,6 +422,8 @@ function NextTrip(props: { trip: Trip; now: number; live: LiveSummary | null; ro
 const styles = StyleSheet.create({
   heroTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   gear: { width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(255,255,255,0.16)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)' },
+  heroTopRight: { flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 1, marginLeft: 12 },
+  sky: { color: 'rgba(255,255,255,0.85)', fontSize: 13, fontWeight: '600', flexShrink: 1 },
   gearIcon: { color: '#fff', fontSize: 20 },
   greeting: { color: 'rgba(255,255,255,0.75)', fontSize: 15, fontWeight: '500' },
   title: { color: '#fff', fontSize: 30, fontWeight: '800', marginTop: 4, letterSpacing: -0.5 },
@@ -426,6 +449,7 @@ const styles = StyleSheet.create({
   delayText: { fontSize: 12, fontWeight: '700' },
   mapButton: { marginLeft: 'auto', borderRadius: 12, paddingVertical: 6, paddingHorizontal: 12, backgroundColor: 'rgba(255,255,255,0.18)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)' },
   mapText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  glassRain: { color: '#bfdbfe', fontSize: 13, fontWeight: '600', marginTop: 8 },
   glassSooner: { color: '#fde68a', fontSize: 13, fontWeight: '600', marginTop: 8 },
   glassSub: { color: 'rgba(255,255,255,0.7)', fontSize: 13 },
   hint: { color: colors.muted, textAlign: 'center', marginTop: 14, fontSize: 14 },

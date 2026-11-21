@@ -61,3 +61,9 @@ export type TripStatus = {
   position: { latitude: number; longitude: number; speedMph: number | null; updated: string | null } | null;
   retrieved: string | null;
 };
+
+// The day's weather at a stop, as the icon on the home screen shows it.
+export type Sky = 'clear' | 'partly' | 'cloudy' | 'fog' | 'drizzle' | 'rain' | 'snow' | 'storm';
+
+// A stop's forecast: today's sky, and each coming hour's chance of rain (0–100).
+export type Forecast = { source: 'open-meteo' | 'nws'; today: Sky | null; hours: { time: string; rain: number }[] };
