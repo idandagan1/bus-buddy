@@ -14,11 +14,11 @@ beforeEach(() => {
 const get = (query: string) => GET(new Request(`http://site.test/api/weather${query}`));
 
 describe('GET /api/weather', () => {
-  it('forecasts the place, cached for half an hour', async () => {
+  it('forecasts the place, cached for a quarter of an hour', async () => {
     const res = await get('?lat=40.93&lon=-73.96');
     expect(forecast).toHaveBeenCalledWith(40.93, -73.96);
     expect(res.status).toBe(200);
-    expect(res.headers.get('Cache-Control')).toBe('public, max-age=1800');
+    expect(res.headers.get('Cache-Control')).toBe('public, max-age=900');
     expect(await res.json()).toEqual(sunny);
   });
 

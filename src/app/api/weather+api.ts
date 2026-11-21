@@ -1,4 +1,4 @@
-// GET /api/weather?lat=40.93&lon=-73.96 — today's sky and the hourly chance of rain there.
+// GET /api/weather?lat=40.93&lon=-73.96 — today's sky, the hourly chance of rain, and weather alerts there.
 // Proxied so the weather services see one identified client, and so a failing service falls back to the other.
 import { forecastAt } from '@/server/weather';
 
@@ -11,7 +11,7 @@ export async function GET(request: Request) {
   }
   try {
     const forecast = await forecastAt(lat, lon);
-    return Response.json(forecast, { headers: { 'Cache-Control': 'public, max-age=1800' } });
+    return Response.json(forecast, { headers: { 'Cache-Control': 'public, max-age=900' } });
   } catch (e) {
     console.error('weather: both services failed', e);
     return Response.json({ error: 'Weather unavailable', source: 'weather' }, { status: 502 });

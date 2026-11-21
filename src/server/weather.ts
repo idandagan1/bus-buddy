@@ -1,7 +1,7 @@
 // The forecast at a stop: today's sky for a small icon, and each hour's chance of rain for an umbrella reminder.
 // Open-Meteo first (free, no key, one request); the US National Weather Service when it fails (also free, but
 // three requests and words instead of codes).
-import type { Forecast, Sky } from '@/types';
+import type { Forecast, Sky, WeatherAlert } from '@/types';
 
 const UA = { 'User-Agent': 'BusBuddy/1.0 (bus-buddy web app)', Accept: 'application/geo+json' };
 
@@ -83,11 +83,59 @@ export async function nws(lat: number, lon: number): Promise<Forecast> {
   };
 }
 
-export async function forecastAt(lat: number, lon: number): Promise<Forecast> {
+type NwsAlert = {
+  id?: string;
+  event?: string;
+  severity?: string;
+  status?: string;
+  headline?: string;
+  description?: string;
+  ends?: string | null;
+  expires?: string | null;
+};
+
+const SERIOUS = new Set(['Moderate', 'Severe', 'Extreme']);
+
+// "* WHAT...Heavy snow expected.\n* WHERE..." → "Heavy snow expected." Alerts without the usual layout give
+// their headline instead.
+export function alertGist(a: Pick<NwsAlert, 'description' | 'headline'>): string {
+  const what = a.description?.match(/\*\s*WHAT\.\.\.([\s\S]*?)(?=\n\s*\n|\n\s*\*|$)/)?.[1];
+  return (what ?? a.headline ?? '').replace(/\s+/g, ' ').trim();
+}
+
+// The warnings and advisories in force at a place (not the minor statements, tests or drafts).
+export async function nwsAlerts(lat: number, lon: number): Promise<WeatherAlert[]> {
+  const body = await json(`https://api.weather.gov/alerts/active?point=${lat.toFixed(4)},${lon.toFixed(4)}`, UA);
+  const features: { properties?: NwsAlert }[] = body?.features ?? [];
+  return features
+    .map((f) => f.properties ?? {})
+    .filter((p) => p.status === 'Actual' && p.event && p.severity && SERIOUS.has(p.severity))
+    .map((p) => ({
+      id: p.id ?? p.event!,
+      event: p.event!,
+      what: alertGist(p),
+      until: p.ends || p.expires || null,
+      severity: p.severity as WeatherAlert['severity'],
+    }));
+}
+
+async function sky(lat: number, lon: number): Promise<Forecast> {
   try {
     return await openMeteo(lat, lon);
   } catch (first) {
     console.error('weather: open-meteo failed, trying weather.gov', first);
     return nws(lat, lon);
   }
+}
+
+// The forecast with the alerts in force; alerts that can't be loaded are left out rather than failing it.
+export async function forecastAt(lat: number, lon: number): Promise<Forecast> {
+  const [forecast, alerts] = await Promise.all([
+    sky(lat, lon),
+    nwsAlerts(lat, lon).catch((e) => {
+      console.error('weather: alerts failed', e);
+      return [];
+    }),
+  ]);
+  return { ...forecast, alerts, checked: new Date().toISOString() };
 }

@@ -1,7 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
-import { Alert, Platform, StyleSheet, Text, View } from 'react-native';
+import { Alert, Linking, Platform, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   FadeIn,
   FadeOut,
@@ -11,7 +11,7 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-import { formatCountdown, formatTime, loadRoutes, saveRoutes, useAdvisories, useNow } from '@/api';
+import { formatCountdown, formatDay, formatTime, loadRoutes, saveRoutes, useAdvisories, useNow } from '@/api';
 import { useDirection } from '@/direction';
 import { severityStyle } from '@/components/Advisories';
 import { ErrorState, StaleNote } from '@/components/ErrorState';
@@ -32,7 +32,9 @@ import type { SavedRoute, Stop, Trip } from '@/types';
 import { Collapsible, colors, EASE_OUT, gradient, Hero, Page, PressableScale, PulseDot, shadow, Skeleton } from '@/ui';
 import { routeProps, track, trackRouteChange } from '@/analytics';
 import { detourLine, detoursNear, isDetour, routeStops } from '@/detours';
-import { formatHour, rainDuring, SKY, useWeather } from '@/weather';
+import { useRoadWork } from '@/roadWork';
+import { incidentLine, incidentsOnTrip, isUrgent, useTraffic } from '@/traffic';
+import { alertsFor, formatHour, formatUntil, rainDuring, SKY, useWeather } from '@/weather';
 
 // Home stays calm: one short fade, no slides or staggers.
 const CALM = FadeIn.duration(250).easing(EASE_OUT);
@@ -117,6 +119,8 @@ export default function Home() {
           </Animated.View>
         )}
 
+        {routes?.[0] && <WeatherAlerts route={routes[0]} />}
+
         {!!routes?.length && (
           <Animated.View entering={CALM} style={styles.section}>
             <Text style={styles.sectionTitle}>My routes</Text>
@@ -169,16 +173,38 @@ function confirmRemove(name: string, onConfirm: () => void) {
   ]);
 }
 
-// Today's weather in the town the rider is leaving from ("☁️ Cloudy in Tenafly"), beside the greeting.
+// Today's weather in the town the rider is leaving from, and when it was checked, beside the greeting:
+// "☁️ Cloudy in Tenafly" over "as of 4:09 PM".
 function TodaySky({ route }: { route: SavedRoute }) {
   const { from } = useDirection(route);
-  const sky = useWeather(from)?.today;
+  const forecast = useWeather(from);
+  const sky = forecast?.today;
   if (!sky) return null;
-  const place = from.town || from.name;
   return (
-    <Animated.Text entering={CALM} style={styles.sky} numberOfLines={1}>
-      {`${SKY[sky].icon} ${SKY[sky].label} in ${place}`}
-    </Animated.Text>
+    <Animated.View entering={CALM} style={styles.skyBox}>
+      <Text style={styles.sky} numberOfLines={1}>{`${SKY[sky].icon} ${SKY[sky].label} in ${from.town || from.name}`}</Text>
+      {forecast.checked && <Text style={styles.skyChecked}>as of {formatTime(forecast.checked)}</Text>}
+    </Animated.View>
+  );
+}
+
+// National Weather Service warnings at either end of the first saved route: a winter storm or flood slows every
+// bus, so they show above the routes, once each.
+function WeatherAlerts({ route }: { route: SavedRoute }) {
+  const alerts = alertsFor([useWeather(route.from), useWeather(route.to)]);
+  const now = useNow();
+  if (!alerts.length) return null;
+  return (
+    <View style={{ gap: 8 }}>
+      {alerts.map((a) => (
+        <Animated.View key={a.id} entering={CALM} style={[styles.alert, styles.weatherAlert, { backgroundColor: severityStyle.high.soft }]}>
+          <Text style={[styles.alertText, { color: severityStyle.high.color }]} numberOfLines={2}>
+            {`⚠️\u00A0 ${a.event}${formatUntil(a.until, now) ? ` ${formatUntil(a.until, now)}` : ''}`}
+          </Text>
+          {!!a.what && <Text style={styles.alertDetail} numberOfLines={3}>{a.what}</Text>}
+        </Animated.View>
+      ))}
+    </View>
   );
 }
 
@@ -280,11 +306,16 @@ function RouteCard({ route, onChange, onRemove }: { route: SavedRoute; onChange:
   // Detours first, saying when one is by the rider's stop; then any other serious alert.
   const detours = detoursNear(advisories, routeStops(route));
   const alerts = advisories.filter((a) => a.severity === 'high' && !isDetour(a));
+  // The town's own road work notices (gas work, paving, closures), newest two.
+  const roadWork = useRoadWork(routeStops(route)).slice(0, 2);
   const now = useNow();
   const statuses = useTripStatuses(trips, now);
   const liveOf = (t: Trip) => summarize(statuses[statusKey(t)], now);
   // A late bus stays "next" until it has actually left.
   const upcoming = trips?.filter((t) => new Date(liveOf(t)?.departure ?? t.departure).getTime() > now - 60000).slice(0, 3) ?? [];
+  // Accidents, closures and big road works on the next bus's way.
+  const traffic = useTraffic(!!upcoming[0]);
+  const incidents = upcoming[0] ? incidentsOnTrip(traffic, upcoming[0], from, to).slice(0, 2) : [];
   const sooner = upcoming[0] ? soonerHidden(all, route.only, liveOf(upcoming[0])?.departure ?? upcoming[0].departure, now) : null;
 
   const spin = useSharedValue(0);
@@ -322,6 +353,26 @@ function RouteCard({ route, onChange, onRemove }: { route: SavedRoute; onChange:
           <Text style={[styles.alertText, { color: severityStyle.high.color }]} numberOfLines={2}>{`↪️\u00A0 ${detourLine(d)}`}</Text>
           {d.near && <Text style={styles.alertDetail} numberOfLines={3}>{[d.advisory.heading, ...d.advisory.paragraphs].join(' ')}</Text>}
         </Animated.View>
+      ))}
+      {incidents.map((inc) => {
+        const tone = isUrgent(inc) ? severityStyle.high : severityStyle.low;
+        return (
+          <Animated.View key={inc.id} entering={CALM} style={[styles.alert, { backgroundColor: tone.soft }]}>
+            <Text style={[styles.alertText, { color: tone.color }]} numberOfLines={2}>{incidentLine(inc)}</Text>
+            {!!inc.what && <Text style={styles.alertDetail} numberOfLines={1}>{`${inc.what} · on your bus's way`}</Text>}
+          </Animated.View>
+        );
+      })}
+      {roadWork.map((n) => (
+        <PressableScale
+          key={n.link}
+          onPress={() => Linking.openURL(n.link)}
+          accessibilityRole="link"
+          style={[styles.alert, { backgroundColor: severityStyle.low.soft }]}
+        >
+          <Text style={[styles.alertText, { color: severityStyle.low.color }]} numberOfLines={2}>{`🚧\u00A0 Road work in ${n.town}: ${n.title}`}</Text>
+          <Text style={styles.alertDetail}>{`Posted ${formatDay(n.posted)} · Read the notice ›`}</Text>
+        </PressableScale>
       ))}
       {alerts.map((a) => (
         <Animated.View key={a.id} entering={CALM} style={[styles.alert, { backgroundColor: severityStyle.high.soft }]}>
@@ -423,7 +474,9 @@ const styles = StyleSheet.create({
   heroTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   gear: { width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(255,255,255,0.16)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)' },
   heroTopRight: { flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 1, marginLeft: 12 },
-  sky: { color: 'rgba(255,255,255,0.85)', fontSize: 13, fontWeight: '600', flexShrink: 1 },
+  skyBox: { alignItems: 'flex-end', flexShrink: 1 },
+  sky: { color: 'rgba(255,255,255,0.85)', fontSize: 13, fontWeight: '600' },
+  skyChecked: { color: 'rgba(255,255,255,0.6)', fontSize: 11, marginTop: 1 },
   gearIcon: { color: '#fff', fontSize: 20 },
   greeting: { color: 'rgba(255,255,255,0.75)', fontSize: 15, fontWeight: '500' },
   title: { color: '#fff', fontSize: 30, fontWeight: '800', marginTop: 4, letterSpacing: -0.5 },
@@ -473,6 +526,7 @@ const styles = StyleSheet.create({
   tripCountdown: { marginLeft: 'auto', color: colors.muted, flexShrink: 0 },
   alert: { borderRadius: 10, paddingVertical: 8, paddingHorizontal: 12 },
   alertText: { fontSize: 13, fontWeight: '700' },
+  weatherAlert: { borderLeftWidth: 4, borderLeftColor: severityStyle.high.color },
   alertDetail: { fontSize: 12, color: colors.text, marginTop: 4, lineHeight: 17 },
   muted: { color: colors.muted, fontSize: 14 },
   error: { color: colors.danger },

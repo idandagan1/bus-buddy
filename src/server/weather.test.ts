@@ -1,5 +1,5 @@
 // Reading both weather services, and falling back from Open-Meteo to the National Weather Service.
-import { forecastAt, nws, openMeteo, skyOfCode, skyOfText } from './weather';
+import { alertGist, forecastAt, nws, nwsAlerts, openMeteo, skyOfCode, skyOfText } from './weather';
 
 const ok = (body: unknown) => ({ ok: true, status: 200, json: async () => body }) as Response;
 const fail = (status: number) => ({ ok: false, status, json: async () => ({}) }) as Response;
@@ -108,11 +108,77 @@ describe('nws', () => {
   });
 });
 
+const storm = {
+  id: 'urn:alert:1',
+  event: 'Winter Storm Warning',
+  severity: 'Severe',
+  status: 'Actual',
+  headline: 'Winter Storm Warning issued November 21 by NWS Upton NY',
+  description: '* WHAT...Heavy snow expected. Total snow\naccumulations 6 to 10 inches.\n\n* WHERE...Eastern Bergen.',
+  ends: '2026-11-23T07:00:00-05:00',
+  expires: '2026-11-22T04:00:00-05:00',
+};
+
+describe('alertGist', () => {
+  it('takes the WHAT part, on one line', () => {
+    expect(alertGist(storm)).toBe('Heavy snow expected. Total snow accumulations 6 to 10 inches.');
+    expect(alertGist({ description: '* WHAT...Gusts up to 50 mph.\n* WHERE...Bergen.' })).toBe('Gusts up to 50 mph.');
+    expect(alertGist({ description: '* WHAT...Dense fog.' })).toBe('Dense fog.');
+  });
+
+  it('falls back to the headline, or nothing', () => {
+    expect(alertGist({ description: 'The river will crest tonight.', headline: 'Flood Warning until 6 PM' })).toBe('Flood Warning until 6 PM');
+    expect(alertGist({})).toBe('');
+  });
+});
+
+describe('nwsAlerts', () => {
+  it('keeps actual warnings and advisories, ending when they end (or expire)', async () => {
+    fetchMock.mockResolvedValue(
+      ok({
+        features: [
+          { properties: storm },
+          { properties: { ...storm, id: 'urn:alert:2', event: 'Wind Advisory', severity: 'Moderate', ends: null, description: undefined, headline: 'Wind Advisory' } },
+          { properties: { ...storm, id: 'urn:alert:3', event: 'Flood Watch', severity: 'Extreme', ends: null, expires: null } },
+          { properties: { ...storm, event: 'Special Weather Statement', severity: 'Minor' } },
+          { properties: { ...storm, event: 'Test Message', status: 'Test' } },
+          { properties: { ...storm, event: undefined } },
+          { properties: { ...storm, severity: 'Unknown' } },
+          {},
+        ],
+      }),
+    );
+    expect(await nwsAlerts(40.92515, -73.96425)).toEqual([
+      { id: 'urn:alert:1', event: 'Winter Storm Warning', what: 'Heavy snow expected. Total snow accumulations 6 to 10 inches.', until: '2026-11-23T07:00:00-05:00', severity: 'Severe' },
+      { id: 'urn:alert:2', event: 'Wind Advisory', what: 'Wind Advisory', until: '2026-11-22T04:00:00-05:00', severity: 'Moderate' },
+      { id: 'urn:alert:3', event: 'Flood Watch', what: 'Heavy snow expected. Total snow accumulations 6 to 10 inches.', until: null, severity: 'Extreme' },
+    ]);
+    expect(fetchMock.mock.calls[0][0]).toBe('https://api.weather.gov/alerts/active?point=40.9252,-73.9643');
+  });
+
+  it('names an alert by its event when it has no id, and copes with no features', async () => {
+    fetchMock.mockResolvedValue(ok({ features: [{ properties: { ...storm, id: undefined } }] }));
+    expect((await nwsAlerts(1, 2))[0].id).toBe('Winter Storm Warning');
+    fetchMock.mockResolvedValue(ok({}));
+    expect(await nwsAlerts(1, 2)).toEqual([]);
+  });
+});
+
 describe('forecastAt', () => {
-  it('uses Open-Meteo when it answers', async () => {
-    fetchMock.mockResolvedValue(ok(meteo));
-    expect((await forecastAt(40.92515, -73.96425)).source).toBe('open-meteo');
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+  it('uses Open-Meteo when it answers, with the alerts in force', async () => {
+    fetchMock.mockImplementation((url: string) => Promise.resolve(url.includes('/alerts/') ? ok({ features: [{ properties: storm }] }) : ok(meteo)));
+    const f = await forecastAt(40.92515, -73.96425);
+    expect(f.source).toBe('open-meteo');
+    expect(f.alerts).toEqual([expect.objectContaining({ event: 'Winter Storm Warning' })]);
+    expect(Date.now() - Date.parse(f.checked!)).toBeLessThan(5000);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('still forecasts when the alerts can’t be loaded', async () => {
+    fetchMock.mockImplementation((url: string) => Promise.resolve(url.includes('/alerts/') ? fail(503) : ok(meteo)));
+    const f = await forecastAt(40.92515, -73.96425);
+    expect(f.today).toBe('rain');
+    expect(f.alerts).toEqual([]);
   });
 
   it('falls back to the National Weather Service when Open-Meteo fails or can’t be reached', async () => {

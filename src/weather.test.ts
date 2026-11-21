@@ -1,7 +1,7 @@
 // The weather on the home screen: rain during a ride, the hour it's named by, and loading forecasts quietly.
 import { act, renderHook } from '@testing-library/react-native';
 import type { Forecast } from './types';
-import { clearForecasts, formatHour, loadForecast, rainDuring, useWeather } from './weather';
+import { alertsFor, clearForecasts, formatHour, formatUntil, loadForecast, rainDuring, useWeather } from './weather';
 
 const hour = (h: number, rain: number) => ({ time: new Date(Date.UTC(2026, 10, 21, h)).toISOString(), rain });
 // 5 PM to 8 PM in New York.
@@ -52,13 +52,13 @@ describe('loading forecasts', () => {
     expect(await loadForecast({ latitude: 40.92515, longitude: -73.96425 })).toEqual(tenafly);
     await loadForecast({ latitude: 40.9271, longitude: -73.9601 });
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock.mock.calls[0][0]).toBe('/api/weather?lat=40.93&lon=-73.96');
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/weather?lat=40.93&lon=-73.96&v=2');
   });
 
-  it('asks again after half an hour', async () => {
+  it('asks again after a quarter of an hour', async () => {
     jest.useFakeTimers({ now: Date.parse(at(20)) });
     await loadForecast({ latitude: 40.9, longitude: -73.9 });
-    jest.setSystemTime(Date.parse(at(20, 31)));
+    jest.setSystemTime(Date.parse(at(20, 16)));
     await loadForecast({ latitude: 40.9, longitude: -73.9 });
     expect(fetchMock).toHaveBeenCalledTimes(2);
     jest.useRealTimers();
@@ -83,5 +83,33 @@ describe('loading forecasts', () => {
       expect(result.current).toBeNull();
     }
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('weather alerts', () => {
+  const alert = (event: string, severity: 'Moderate' | 'Severe' | 'Extreme', id = event) => ({ id, event, severity, what: '', until: null });
+
+  it('lists each event once, the most serious first', () => {
+    const tenaflyAlerts = { ...tenafly, alerts: [alert('Wind Advisory', 'Moderate'), alert('Winter Storm Warning', 'Severe', 'a')] };
+    const nycAlerts = { ...nyc, alerts: [alert('Winter Storm Warning', 'Severe', 'b'), alert('Flash Flood Warning', 'Extreme')] };
+    expect(alertsFor([tenaflyAlerts, nycAlerts]).map((a) => a.id)).toEqual(['Flash Flood Warning', 'a', 'Wind Advisory']);
+  });
+
+  it('has none without forecasts or alerts', () => {
+    expect(alertsFor([null, undefined, tenafly])).toEqual([]);
+  });
+
+  it('says until when, by the New York clock', () => {
+    const now = Date.parse(at(17)); // noon Saturday
+    expect(formatUntil(at(23), now)).toBe('until 6 PM');
+    expect(formatUntil(at(23, 30), now)).toBe('until 6:30 PM');
+    expect(formatUntil(new Date(Date.UTC(2026, 10, 23, 12)).toISOString(), now)).toBe('until Mon 7 AM');
+    // 11 PM Saturday in New York is already Sunday in UTC.
+    expect(formatUntil(new Date(Date.UTC(2026, 10, 22, 4)).toISOString(), now)).toBe('until 11 PM');
+  });
+
+  it('says nothing for an unknown end', () => {
+    expect(formatUntil(null, 0)).toBe('');
+    expect(formatUntil('soon', 0)).toBe('');
   });
 });

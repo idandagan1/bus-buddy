@@ -1,11 +1,13 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { router } from 'expo-router';
-import { Alert, Platform } from 'react-native';
+import { Alert, Linking, Platform } from 'react-native';
 import { loadRoutes, useAdvisories } from '@/api';
 import Home from '@/app/index';
 import { useDirection } from '@/direction';
 import { useWeather } from '@/weather';
+import { useRoadWork } from '@/roadWork';
+import { useTraffic } from '@/traffic';
 import { useFirstRun } from '@/firstRun';
 import { useTripStatuses } from '@/live';
 import { usePartner, useRouteTrips } from '@/routeTrips';
@@ -21,6 +23,8 @@ jest.mock('@/api', () => ({ ...jest.requireActual('@/api'), useAdvisories: jest.
 jest.mock('@/routeTrips', () => ({ useRouteTrips: jest.fn(), usePartner: jest.fn() }));
 jest.mock('@/live', () => ({ ...jest.requireActual('@/live'), useTripStatuses: jest.fn() }));
 jest.mock('@/direction', () => ({ useDirection: jest.fn() }));
+jest.mock('@/roadWork', () => ({ useRoadWork: jest.fn() }));
+jest.mock('@/traffic', () => ({ ...jest.requireActual('@/traffic'), useTraffic: jest.fn() }));
 jest.mock('@/weather', () => ({ ...jest.requireActual('@/weather'), useWeather: jest.fn() }));
 jest.mock('@/firstRun', () => ({ useFirstRun: jest.fn(), finishNudge: jest.fn() }));
 jest.mock('@/components/InstallCard', () => {
@@ -149,6 +153,8 @@ beforeEach(async () => {
   jest.mocked(useDirection).mockImplementation((route) => ({ from: route.from, to: route.to, reversed: false }));
   jest.mocked(useAdvisories).mockReturnValue([]);
   jest.mocked(useWeather).mockReturnValue(null);
+  jest.mocked(useRoadWork).mockReturnValue([]);
+  jest.mocked(useTraffic).mockReturnValue([]);
   jest.mocked(useFirstRun).mockReturnValue({ welcome: false, nudge: false });
 });
 
@@ -437,15 +443,73 @@ describe('Home: loading and errors', () => {
   });
 });
 
+describe('Home: traffic', () => {
+  const incident = (id: string, kind: 'accident' | 'road-works', point: [number, number], extra = {}) => ({
+    id, kind, what: 'Stationary traffic', road: 'US-9W', from: 'Clinton Ave', to: null, delayMin: 6, until: null, points: [point], ...extra,
+  });
+
+  it('shows incidents on the next bus’s way, urgent ones first in orange', async () => {
+    // The test trips list no stops, so the way is straight from Port Authority to Tenafly.
+    const mid: [number, number] = [(pabt.latitude + tenafly.latitude) / 2, (pabt.longitude + tenafly.longitude) / 2];
+    jest.mocked(useTraffic).mockReturnValue([
+      incident('i1', 'accident', mid),
+      incident('i2', 'road-works', [41.2, -74.3]),
+      incident('i3', 'road-works', mid, { delayMin: null, what: null }),
+    ]);
+    await save([{ id: 'r1', from: pabt, to: tenafly }]);
+    await show();
+    expect(jest.mocked(useTraffic)).toHaveBeenCalledWith(true);
+    expect(screen.getByText('🚨\u00A0 Accident on US-9W near Clinton Ave · +6 min')).toBeOnTheScreen();
+    expect(screen.getByText("Stationary traffic · on your bus's way")).toBeOnTheScreen();
+    expect(screen.getByText('🚧\u00A0 Road works on US-9W near Clinton Ave')).toBeOnTheScreen();
+    expect(screen.getAllByText(/near Clinton Ave/)).toHaveLength(2);
+  });
+
+  it('doesn’t ask about traffic with no bus coming', async () => {
+    schedule = () => ({ trips: [] });
+    await save([{ id: 'r1', from: pabt, to: tenafly }]);
+    await show();
+    expect(jest.mocked(useTraffic)).toHaveBeenCalledWith(false);
+    expect(jest.mocked(useTraffic)).not.toHaveBeenCalledWith(true);
+  });
+});
+
+describe('Home: town road work', () => {
+  const gas = { town: 'Tenafly', title: 'JFC TENAFLY GAS WORK SCHEDULE', link: 'https://www.tenaflynj.gov/gas', posted: '2026-11-19T20:08:00.000Z' };
+  const paving = { ...gas, title: 'Paving on Engle St', link: 'https://www.tenaflynj.gov/paving' };
+  const sewer = { ...gas, title: 'Sewer work', link: 'https://www.tenaflynj.gov/sewer' };
+
+  it('shows the newest two notices on the card, each opening the notice', async () => {
+    jest.mocked(useRoadWork).mockReturnValue([gas, paving, sewer]);
+    const open = jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
+    await save([{ id: 'r1', from: pabt, to: tenafly }]);
+    await show();
+    expect(jest.mocked(useRoadWork).mock.calls[0][0]).toEqual([pabt, tenafly]);
+    expect(screen.getByText('🚧\u00A0 Road work in Tenafly: JFC TENAFLY GAS WORK SCHEDULE')).toBeOnTheScreen();
+    expect(screen.getByText('🚧\u00A0 Road work in Tenafly: Paving on Engle St')).toBeOnTheScreen();
+    expect(screen.queryByText(/Sewer work/)).toBeNull();
+    expect(screen.getAllByText('Posted Thu, Nov 19 · Read the notice ›')).toHaveLength(2);
+    await fireEvent.press(screen.getAllByRole('link')[0]);
+    expect(open).toHaveBeenCalledWith('https://www.tenaflynj.gov/gas');
+  });
+
+  it('shows nothing without notices', async () => {
+    await save([{ id: 'r1', from: pabt, to: tenafly }]);
+    await show();
+    expect(screen.queryByText(/Road work/)).toBeNull();
+  });
+});
+
 describe('Home: weather', () => {
   // The first bus leaves at 12:45 PM and arrives at 1:35 PM (New York).
   const hourAt = (min: number, rain: number) => ({ time: iso(NOW + min * MIN), rain });
 
   it('shows today’s sky as an icon, and no umbrella on a dry ride', async () => {
-    jest.mocked(useWeather).mockReturnValue({ source: 'open-meteo', today: 'partly', hours: [hourAt(60, 10)] });
+    jest.mocked(useWeather).mockReturnValue({ source: 'open-meteo', today: 'partly', hours: [hourAt(60, 10)], checked: iso(NOW - 9 * MIN) });
     await save([{ id: 'r1', from: pabt, to: tenafly }]);
     await show();
     expect(screen.getByText('⛅ Partly cloudy in New York')).toBeOnTheScreen();
+    expect(screen.getByText('as of 11:51 AM')).toBeOnTheScreen();
     expect(screen.queryByText(/umbrella/)).toBeNull();
   });
 
@@ -463,6 +527,25 @@ describe('Home: weather', () => {
     await save([{ id: 'r1', from: pabt, to: tenafly }]);
     await show();
     expect(screen.getByText('☀️ Sunny in Tenafly')).toBeOnTheScreen();
+    // Without a check time, only the sky shows.
+    expect(screen.queryByText(/^as of/)).toBeNull();
+  });
+
+  it('warns of a weather alert above the routes, once even when both ends have it', async () => {
+    const storm = { id: 'w1', event: 'Winter Storm Warning', severity: 'Severe' as const, what: 'Heavy snow expected.', until: iso(NOW + 6 * 60 * MIN) };
+    jest.mocked(useWeather).mockReturnValue({ source: 'open-meteo', today: 'snow', hours: [], alerts: [storm] });
+    await save([{ id: 'r1', from: pabt, to: tenafly }]);
+    await show();
+    expect(screen.getAllByText('⚠️\u00A0 Winter Storm Warning until 6 PM')).toHaveLength(1);
+    expect(screen.getByText('Heavy snow expected.')).toBeOnTheScreen();
+  });
+
+  it('leaves out an unknown end and an empty gist', async () => {
+    const wind = { id: 'w2', event: 'Wind Advisory', severity: 'Moderate' as const, what: '', until: null };
+    jest.mocked(useWeather).mockReturnValue({ source: 'nws', today: null, hours: [], alerts: [wind] });
+    await save([{ id: 'r1', from: pabt, to: tenafly }]);
+    await show();
+    expect(screen.getByText('⚠️\u00A0 Wind Advisory')).toBeOnTheScreen();
   });
 
   it('shows nothing while the weather is unknown, or with no sky for today', async () => {

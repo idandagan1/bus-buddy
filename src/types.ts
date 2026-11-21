@@ -65,5 +65,24 @@ export type TripStatus = {
 // The day's weather at a stop, as the icon on the home screen shows it.
 export type Sky = 'clear' | 'partly' | 'cloudy' | 'fog' | 'drizzle' | 'rain' | 'snow' | 'storm';
 
-// A stop's forecast: today's sky, and each coming hour's chance of rain (0–100).
-export type Forecast = { source: 'open-meteo' | 'nws'; today: Sky | null; hours: { time: string; rain: number }[] };
+// A National Weather Service warning or advisory in force at a stop: a winter storm, a flood, high wind.
+// what: the gist ("Heavy snow expected. Total snow accumulations 6 to 10 inches."); until: when it ends, if known.
+export type WeatherAlert = { id: string; event: string; what: string; until: string | null; severity: 'Moderate' | 'Severe' | 'Extreme' };
+
+// A stop's forecast: today's sky, each coming hour's chance of rain (0–100), any weather alerts there, and when
+// it was checked.
+export type Forecast = { source: 'open-meteo' | 'nws'; today: Sky | null; hours: { time: string; rain: number }[]; alerts?: WeatherAlert[]; checked?: string };
+
+// A live traffic incident on the roads our buses use (from TomTom). what: TomTom's words ("Stationary traffic"),
+// road: its number ("US-9W"), from/to: the streets it lies between, points: [lat, lon] along it.
+export type TrafficIncident = {
+  id: string;
+  kind: 'accident' | 'danger' | 'ice' | 'lane-closed' | 'road-closed' | 'road-works' | 'flooding' | 'broken-down';
+  what: string | null;
+  road: string | null;
+  from: string | null;
+  to: string | null;
+  delayMin: number | null;
+  until: string | null;
+  points: [number, number][];
+};
