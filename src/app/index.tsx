@@ -24,11 +24,12 @@ import { MyAlarms } from '@/components/MyAlarms';
 import { statusKey, summarize, useTripStatuses, type LiveSummary } from '@/live';
 import { RoutePlanner } from '@/components/RoutePlanner';
 import { RouteBadge } from '@/components/RouteBadge';
+import { FilterButton } from '@/components/FilterButton';
 import { RouteChips } from '@/components/RouteChips';
-import { chosenTrips, offerLabel, routeChoices } from '@/routeFilter';
+import { chosenTrips, offerLabel, routeChoices, soonerHidden } from '@/routeFilter';
 import { usePartner, useRouteTrips } from '@/routeTrips';
 import type { SavedRoute, Stop, Trip } from '@/types';
-import { colors, EASE_OUT, gradient, Hero, Page, PressableScale, PulseDot, shadow, Skeleton } from '@/ui';
+import { Collapsible, colors, EASE_OUT, gradient, Hero, Page, PressableScale, PulseDot, shadow, Skeleton } from '@/ui';
 import { routeProps, track, trackRouteChange } from '@/analytics';
 import { detourLine, detoursNear, isDetour, routeStops } from '@/detours';
 
@@ -188,6 +189,7 @@ function NextBusHero({ route }: { route: SavedRoute }) {
   const liveOf = (t: Trip) => summarize(statuses[statusKey(t)], now);
   const next = trips?.find((t) => new Date(liveOf(t)?.departure ?? t.departure).getTime() > now);
   const live = next ? liveOf(next) : null;
+  const sooner = next ? soonerHidden(all, route.only, live?.departure ?? next.departure, now) : null;
 
   // A failed load with nothing cached would otherwise leave the skeleton up for good; the route card shows the error.
   if (!trips && (error || loadingTooLong)) return <Animated.Text style={styles.title}>Your buses</Animated.Text>;
@@ -230,6 +232,7 @@ function NextBusHero({ route }: { route: SavedRoute }) {
             <Text style={styles.glassSub}>{next.gate ? `Gate ${next.gate} · ` : ''}arrives {formatTime(live?.arrival ?? next.arrival)}</Text>
           </View>
         </View>
+        {sooner && <Text style={styles.glassSooner} numberOfLines={1}>{`A ${sooner.route} leaves sooner, at ${formatTime(sooner.departure)}`}</Text>}
       </Animated.View>
     </>
   );
@@ -239,6 +242,8 @@ function NextBusHero({ route }: { route: SavedRoute }) {
 // to wait for the bus, so the home card shows it whatever its severity.
 function RouteCard({ route, onChange, onRemove }: { route: SavedRoute; onChange: (route: SavedRoute) => void; onRemove: () => void }) {
   const [reversed, setReversed] = useState(false);
+  // The line chips stay folded away behind the Filter button until asked for.
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const from = reversed ? route.to : route.from;
   const to = reversed ? route.from : route.to;
   const { trips: all, error, offline, cachedAt, reload, legs } = useRouteTrips(route, reversed);
@@ -247,6 +252,8 @@ function RouteCard({ route, onChange, onRemove }: { route: SavedRoute; onChange:
   // Each bus's route (166 or 166X) only matters when more than one could show up.
   const routes = routeChoices(all, route.only);
   const showRoute = routes.length > 0 && route.only?.length !== 1;
+  // Route choices were made among the old set of buses, so they start over when the other carrier is added.
+  const offer = !route.also && partner ? { label: offerLabel(partner), onPress: () => onChange({ ...route, also: partner, only: undefined }) } : null;
   // Each carrier's alerts come from its own trips.
   const advisories = [...useAdvisories(legs[0]), ...useAdvisories(legs[1])];
   // Detours first, saying when one is by the rider's stop; then any other serious alert.
@@ -257,6 +264,7 @@ function RouteCard({ route, onChange, onRemove }: { route: SavedRoute; onChange:
   const liveOf = (t: Trip) => summarize(statuses[statusKey(t)], now);
   // A late bus stays "next" until it has actually left.
   const upcoming = trips?.filter((t) => new Date(liveOf(t)?.departure ?? t.departure).getTime() > now - 60000).slice(0, 3) ?? [];
+  const sooner = upcoming[0] ? soonerHidden(all, route.only, liveOf(upcoming[0])?.departure ?? upcoming[0].departure, now) : null;
 
   const spin = useSharedValue(0);
   const spinStyle = useAnimatedStyle(() => ({ transform: [{ rotate: `${spin.value}deg` }] }));
@@ -276,6 +284,7 @@ function RouteCard({ route, onChange, onRemove }: { route: SavedRoute; onChange:
           <View style={styles.tags}>
             <CarrierTag stop={route.from} />
             {route.also && <CarrierTag stop={route.also.from} onRemove={() => onChange({ ...route, also: undefined, only: undefined })} />}
+            {(routes.length > 0 || offer) && <FilterButton only={route.only} open={filtersOpen} onPress={() => setFiltersOpen((v) => !v)} />}
           </View>
         </Animated.View>
         <PressableScale onPress={swap} hitSlop={8} style={styles.swap}>
@@ -283,13 +292,9 @@ function RouteCard({ route, onChange, onRemove }: { route: SavedRoute; onChange:
         </PressableScale>
       </View>
 
-      <RouteChips
-        trips={all}
-        only={route.only}
-        onChange={(only) => onChange({ ...route, only })}
-        // Route choices were made among the old set of buses, so they start over.
-        offer={!route.also && partner ? { label: offerLabel(partner), onPress: () => onChange({ ...route, also: partner, only: undefined }) } : null}
-      />
+      <Collapsible expanded={filtersOpen} gap={12}>
+        <RouteChips trips={all} only={route.only} onChange={(only) => onChange({ ...route, only })} offer={offer} />
+      </Collapsible>
 
       {detours.map((d) => (
         <Animated.View key={d.advisory.id} entering={CALM} style={[styles.alert, { backgroundColor: severityStyle.high.soft }]}>
@@ -317,7 +322,7 @@ function RouteCard({ route, onChange, onRemove }: { route: SavedRoute; onChange:
 
       <View key={`${from.id}-${to.id}`} style={{ gap: 6 }}>
         {upcoming.map((t, i) =>
-          i === 0 ? <NextTrip key={t.id} trip={t} now={now} live={liveOf(t)} routes={showRoute ? routes : null} /> : (
+          i === 0 ? <NextTrip key={t.id} trip={t} now={now} live={liveOf(t)} routes={showRoute ? routes : null} sooner={sooner} onShowAll={() => onChange({ ...route, only: undefined })} /> : (
             <Animated.View key={t.id} entering={SWAP} style={styles.trip}>
               <Text style={styles.tripTime}>{formatTime(t.departure)}</Text>
               <Text style={styles.muted} numberOfLines={1}>→ {formatTime(t.arrival)}</Text>
@@ -355,8 +360,10 @@ function DelayBadge({ live }: { live: LiveSummary | null }) {
 }
 
 // Highlighted next departure with a bar that fills over the final hour.
-// routes: every route showing, when the bus's own should be labeled.
-function NextTrip({ trip, now, live, routes }: { trip: Trip; now: number; live: LiveSummary | null; routes: string[] | null }) {
+// routes: every route showing, when the bus's own should be labeled. sooner: a bus the rider's line choice hides
+// that leaves first, named in the row's spare space (tapping it shows every line).
+function NextTrip(props: { trip: Trip; now: number; live: LiveSummary | null; routes: string[] | null; sooner?: Trip | null; onShowAll?: () => void }) {
+  const { trip, now, live, routes, sooner, onShowAll } = props;
   const departure = live?.departure ?? trip.departure;
   const minsLeft = (new Date(departure).getTime() - now) / 60000;
   const fill = Math.min(1, Math.max(0.04, 1 - minsLeft / 60));
@@ -374,6 +381,11 @@ function NextTrip({ trip, now, live, routes }: { trip: Trip; now: number; live: 
         <Text style={styles.muted} numberOfLines={1}>→ {formatTime(live?.arrival ?? trip.arrival)}</Text>
         {routes && <RouteBadge trip={trip} routes={routes} />}
         {trip.gate && <GateBadge gate={trip.gate} />}
+        {sooner && (
+          <PressableScale onPress={onShowAll} hitSlop={6} accessibilityRole="button" accessibilityLabel={`A ${sooner.route} leaves sooner, at ${formatTime(sooner.departure)}. Show all lines`} style={styles.sooner}>
+            <Text style={styles.soonerText} numberOfLines={1}>{`${sooner.route} · ${formatTime(sooner.departure)} is sooner`}</Text>
+          </PressableScale>
+        )}
         <Text style={styles.nextCountdown}>{formatCountdown(departure, now)}</Text>
       </View>
       {live && <LiveStatus summary={live} compact />}
@@ -414,6 +426,7 @@ const styles = StyleSheet.create({
   delayText: { fontSize: 12, fontWeight: '700' },
   mapButton: { marginLeft: 'auto', borderRadius: 12, paddingVertical: 6, paddingHorizontal: 12, backgroundColor: 'rgba(255,255,255,0.18)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)' },
   mapText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  glassSooner: { color: '#fde68a', fontSize: 13, fontWeight: '600', marginTop: 8 },
   glassSub: { color: 'rgba(255,255,255,0.7)', fontSize: 13 },
   hint: { color: colors.muted, textAlign: 'center', marginTop: 14, fontSize: 14 },
   card: { backgroundColor: colors.card, borderRadius: 20, padding: 16, gap: 12 },
@@ -426,6 +439,8 @@ const styles = StyleSheet.create({
   nextRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   nextTime: { fontSize: 22, fontWeight: '800', color: colors.primary, letterSpacing: -0.3 },
   nextCountdown: { marginLeft: 'auto', color: colors.primary, fontWeight: '700' },
+  sooner: { flexShrink: 1, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2, backgroundColor: colors.card },
+  soonerText: { color: colors.text, fontSize: 12, fontWeight: '700' },
   track: { height: 6, borderRadius: 3, backgroundColor: 'rgba(37,99,235,0.12)', overflow: 'hidden' },
   barWrap: { height: 6, borderRadius: 3, overflow: 'hidden' },
   // On narrow screens the gate and countdown wrap to a second line rather than squeezing the times.

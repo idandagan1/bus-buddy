@@ -285,11 +285,23 @@ describe('Schedule screen', () => {
     expect(router.replace).toHaveBeenCalledWith('/');
   });
 
+  it('keeps the chips folded behind Filter, which names the lines showing while a filter is on', async () => {
+    setTrips([trip(at(10, 30), '166X'), trip(at(11), '166')]);
+    await open({ ...route, only: ['166X'] });
+    expect(screen.queryByRole('button', { name: 'All' })).toBeNull();
+    const filter = screen.getByRole('button', { name: 'Filter: showing 166X only' });
+    expect(filter.props.accessibilityState?.expanded).toBe(false);
+    await fireEvent.press(filter);
+    expect(screen.getByRole('button', { name: 'All' })).toBeOnTheScreen();
+  });
+
   it('filters by line from the hero chips and saves the choice', async () => {
     const express = trip(at(10, 30), '166X');
     const local = trip(at(11), '166');
     setTrips([express, local]);
     await open();
+    // The chips sit folded behind the Filter button.
+    await fireEvent.press(screen.getByRole('button', { name: /^Filter/ }));
 
     await fireEvent.press(screen.getByRole('button', { name: '166X Express' }));
     expect(screen.queryByText(formatTime(local.departure))).toBeNull();
@@ -316,6 +328,8 @@ describe('Schedule screen', () => {
     jest.mocked(usePartner).mockReturnValue(leg);
     setTrips([trip(at(10, 30))]);
     await open({ ...route, only: ['166'] });
+    // The chips sit folded behind the Filter button.
+    await fireEvent.press(screen.getByRole('button', { name: /^Filter/ }));
 
     await fireEvent.press(screen.getByText('+ Coach USA'));
     const saved = (await loadRoutes()).find((r) => r.id === 'r1');
@@ -330,6 +344,8 @@ describe('Schedule screen', () => {
     setTrips([njtNext, njtLocal, coach], { other: [coach] });
     jest.mocked(usePartner).mockReturnValue(null);
     await open({ ...route, also });
+    // The chips sit folded behind the Filter button.
+    await fireEvent.press(screen.getByRole('button', { name: /^Filter/ }));
 
     expect(screen.getByText('NJ Transit')).toBeOnTheScreen();
     expect(screen.getByText('Coach USA')).toBeOnTheScreen();

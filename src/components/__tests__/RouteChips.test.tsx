@@ -33,6 +33,13 @@ describe('RouteChips', () => {
     expect(chip('166 Local')).not.toBeSelected();
   });
 
+  it('puts an ✕ on chosen lines only, so a filter that’s on reads as one', async () => {
+    await render(<RouteChips trips={njt} only={['166T']} onChange={jest.fn()} />);
+    expect(screen.getByText('166T  ✕')).toBeOnTheScreen();
+    expect(screen.getByText('166X')).toBeOnTheScreen();
+    expect(screen.getByText('All')).toBeOnTheScreen();
+  });
+
   it('adds a line to the choice', async () => {
     const onChange = jest.fn();
     await render(<RouteChips trips={njt} only={['166X']} onChange={onChange} />);

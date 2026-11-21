@@ -34,7 +34,8 @@ export function RouteChips(props: {
         style={dark ? [styles.chip, dark.chip] : [styles.chip, onDark && styles.chipDark, on && (onDark ? styles.onDark : [styles.on, tint && { backgroundColor: tint, borderColor: tint }])]}
       >
         <Text style={dark ? [styles.text, dark.text] : [styles.text, onDark && styles.textDark, !on && !onDark && tint && { color: tint }, on && (onDark ? styles.onDarkText : styles.onText)]}>
-          {label}
+          {/* A chosen line carries an ✕: it reads as a filter that's on, and says a tap takes it off. */}
+          {value && on ? `${label}  ✕` : label}
         </Text>
       </PressableScale>
     );

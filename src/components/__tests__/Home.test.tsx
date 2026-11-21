@@ -437,10 +437,43 @@ describe('Home: loading and errors', () => {
 describe('Home: line chips', () => {
   const chip = (name: string) => screen.getByRole('button', { name });
   const selected = (name: string) => chip(name).props.accessibilityState?.selected;
+  const filterButton = () => screen.getByRole('button', { name: /^Filter/ });
+  // The chips sit folded behind the card's Filter button.
+  const showChips = async () => {
+    await show();
+    await fireEvent.press(filterButton());
+  };
+
+  it('keeps the chips folded away until Filter is tapped, and folds them again', async () => {
+    await save([{ id: 'r1', from: pabt, to: tenafly }]);
+    await show();
+    expect(screen.queryByRole('button', { name: 'All' })).toBeNull();
+    expect(filterButton()).toHaveAccessibleName('Filter lines');
+    expect(filterButton().props.accessibilityState?.expanded).toBe(false);
+    await fireEvent.press(filterButton());
+    expect(selected('All')).toBe(true);
+    expect(filterButton().props.accessibilityState?.expanded).toBe(true);
+    await fireEvent.press(filterButton());
+    expect(screen.queryByRole('button', { name: 'All' })).toBeNull();
+  });
+
+  it('names the lines showing on the folded button while a filter is on', async () => {
+    await save([{ id: 'r1', from: pabt, to: tenafly, only: ['166X'] }]);
+    await show();
+    expect(filterButton()).toHaveAccessibleName('Filter: showing 166X only');
+    expect(screen.getByText('166X')).toBeOnTheScreen();
+  });
+
+  it('has no Filter button with nothing to choose and nothing to add', async () => {
+    schedule = () => ({ trips: [trip('only', '166', 30)] });
+    await save([{ id: 'r1', from: pabt, to: tenafly }]);
+    await show();
+    expect(screen.queryByRole('button', { name: /^Filter/ })).toBeNull();
+  });
 
   it('narrows a card to one line and back to all', async () => {
     await save([{ id: 'r1', from: pabt, to: tenafly }]);
-    await show();
+    await showChips();
     expect(selected('All')).toBe(true);
     await fireEvent.press(chip('166X Express'));
     await flush();
@@ -456,10 +489,27 @@ describe('Home: line chips', () => {
     expect((await loadRoutes())[0].only).toBeUndefined();
   });
 
+  it('names a sooner bus the choice hides, and tapping it shows every line', async () => {
+    await save([{ id: 'r1', from: pabt, to: tenafly, only: ['166'] }]);
+    await showChips();
+    // The 166X at 12:45 leaves before the next 166 at 1:10, on the hero and the card.
+    expect(screen.getByText('A 166X leaves sooner, at 12:45 PM')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: 'A 166X leaves sooner, at 12:45 PM. Show all lines' }));
+    await flush();
+    expect((await loadRoutes())[0].only).toBeUndefined();
+    expect(screen.queryByText(/is sooner/)).toBeNull();
+  });
+
+  it('says nothing more when the choice hides no sooner bus', async () => {
+    await save([{ id: 'r1', from: pabt, to: tenafly, only: ['166X'] }]);
+    await showChips();
+    expect(screen.queryByText(/is sooner/)).toBeNull();
+  });
+
   it('offers the other carrier on the same corner and adds it', async () => {
     jest.mocked(usePartner).mockReturnValue(partner);
     await save([{ id: 'r1', from: pabt, to: tenafly, only: ['166X'] }]);
-    await show();
+    await showChips();
     await fireEvent.press(chip('+ 166 NJT'));
     await flush();
     // Line choices start over with the other carrier's buses added.
@@ -470,7 +520,7 @@ describe('Home: line chips', () => {
     jest.mocked(usePartner).mockReturnValue({ from: njtFrom, to: { ...njtTo, routes: undefined } });
     schedule = () => ({ trips: [trip('only', '166', 30)] });
     await save([{ id: 'r1', from: pabt, to: tenafly }]);
-    await show();
+    await showChips();
     expect(chip('+ NJ Transit')).toBeOnTheScreen();
     // A single line has nothing to choose between.
     expect(screen.queryByRole('button', { name: 'All' })).toBeNull();
@@ -487,7 +537,7 @@ describe('Home: line chips', () => {
 
     it('labels each carrier and lists both by departure', async () => {
       await save([both]);
-      await show();
+      await showChips();
       expect(screen.getByText('New York → Tenafly · 20')).toBeOnTheScreen();
       expect(chip('Coach 20')).toBeOnTheScreen();
       expect(chip('166')).toBeOnTheScreen();
@@ -500,7 +550,7 @@ describe('Home: line chips', () => {
 
     it('takes the added carrier off with its ✕, and its line choice with it', async () => {
       await save([{ ...both, only: ['166'] }]);
-      await show();
+      await showChips();
       await fireEvent.press(screen.getByRole('button', { name: 'Remove NJ Transit' }));
       await flush();
       expect(await loadRoutes()).toEqual([{ id: 'r1', from: pabt, to: tenafly }]);
@@ -508,7 +558,7 @@ describe('Home: line chips', () => {
 
     it('only filters when none of the other carrier’s lines are kept; the ✕ is what takes it off', async () => {
       await save([both]);
-      await show();
+      await showChips();
       await fireEvent.press(chip('Coach 20'));
       await flush();
       expect(await loadRoutes()).toEqual([{ ...both, only: ['20'] }]);
@@ -524,7 +574,7 @@ describe('Home: line chips', () => {
 
     it('keeps the other carrier when one of its lines is kept', async () => {
       await save([both]);
-      await show();
+      await showChips();
       await fireEvent.press(chip('166'));
       await flush();
       expect(await loadRoutes()).toEqual([{ ...both, only: ['166'] }]);

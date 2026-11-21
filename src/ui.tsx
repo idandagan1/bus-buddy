@@ -146,13 +146,14 @@ const styles = StyleSheet.create({
 export const EASE_OUT = Easing.bezier(0.22, 1, 0.36, 1);
 
 // Accordion body: animates its measured height so content and everything below move smoothly.
-export function Collapsible({ expanded, children }: { expanded: boolean; children: ReactNode }) {
+// gap: the parent's row gap, folded away too while shut so a closed section takes no space at all.
+export function Collapsible({ expanded, gap = 0, children }: { expanded: boolean; gap?: number; children: ReactNode }) {
   const height = useSharedValue(0);
   const progress = useSharedValue(expanded ? 1 : 0);
   useEffect(() => {
     progress.set(withTiming(expanded ? 1 : 0, { duration: expanded ? 380 : 260, easing: EASE_OUT }));
   }, [expanded, progress]);
-  const outer = useAnimatedStyle(() => ({ height: height.value * progress.value }));
+  const outer = useAnimatedStyle(() => ({ height: height.value * progress.value, marginBottom: -gap * (1 - progress.value) }));
   const inner = useAnimatedStyle(() => ({
     opacity: progress.value,
     transform: [{ translateY: (1 - progress.value) * -6 }],

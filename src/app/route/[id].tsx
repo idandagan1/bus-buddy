@@ -13,6 +13,7 @@ import { LiveStatus } from '@/components/LiveStatus';
 import { statusKey, summarize, useTripStatuses, type LiveSummary } from '@/live';
 import type { SavedRoute, Trip } from '@/types';
 import { DayTabs } from '@/components/DayTabs';
+import { FilterButton } from '@/components/FilterButton';
 import { RouteChips } from '@/components/RouteChips';
 import { RouteBadge } from '@/components/RouteBadge';
 import { chosenTrips, offerLabel, routeChoices } from '@/routeFilter';
@@ -72,6 +73,8 @@ function Schedule(props: { route: SavedRoute; reversed: boolean; onSwap: () => v
   const days = useMemo(() => [...new Set(trips?.map((t) => dayKey(t.departure)))], [trips]);
   const [day, setDay] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
+  // The line chips stay folded away behind the Filter button until asked for.
+  const [filtersOpen, setFiltersOpen] = useState(false);
   // Which way the trip list slides in: toward later days from the right, earlier from the left, flips from below.
   const [motion, setMotion] = useState<'left' | 'right' | 'up'>('up');
   const next = trips?.find((t) => new Date(t.departure).getTime() > now);
@@ -142,6 +145,7 @@ function Schedule(props: { route: SavedRoute; reversed: boolean; onSwap: () => v
                     }}
                   />
                 )}
+                {(routes.length > 0 || (!route.also && partner)) && <FilterButton onDark only={only} open={filtersOpen} onPress={() => setFiltersOpen((v) => !v)} />}
                 {Platform.OS !== 'android' && mapTrip && (
                   <PressableScale onPress={() => router.push({ pathname: '/map', params: { ...mapLink, trip: mapTrip.id } })} hitSlop={8} style={styles.heroMap}>
                     <Text style={styles.heroMapText}>🗺  Map</Text>
@@ -154,28 +158,30 @@ function Schedule(props: { route: SavedRoute; reversed: boolean; onSwap: () => v
               <Text style={styles.swapText}>Return</Text>
             </PressableScale>
           </View>
-          <View style={styles.heroChips}>
-            <RouteChips
-              trips={all}
-              only={only}
-              onDark
-              onChange={(next) => {
-                restart();
-                onChange({ ...route, only: next });
-              }}
-              offer={
-                !route.also && partner
-                  ? {
-                      label: offerLabel(partner),
-                      onPress: () => {
-                        restart();
-                        onChange({ ...route, also: partner, only: undefined });
-                      },
-                    }
-                  : null
-              }
-            />
-          </View>
+          <Collapsible expanded={filtersOpen}>
+            <View style={styles.heroChips}>
+              <RouteChips
+                trips={all}
+                only={only}
+                onDark
+                onChange={(next) => {
+                  restart();
+                  onChange({ ...route, only: next });
+                }}
+                offer={
+                  !route.also && partner
+                    ? {
+                        label: offerLabel(partner),
+                        onPress: () => {
+                          restart();
+                          onChange({ ...route, also: partner, only: undefined });
+                        },
+                      }
+                    : null
+                }
+              />
+            </View>
+          </Collapsible>
         </Hero>
       }
     >

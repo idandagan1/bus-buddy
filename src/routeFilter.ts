@@ -43,3 +43,11 @@ export function offerLabel(leg: Leg) {
   if (leg.from.carrier !== 'NJT') return '+ Coach USA';
   return leg.to.routes?.length ? `+ ${leg.to.routes.join(' / ')} NJT` : '+ NJ Transit';
 }
+
+// A bus the rider's choice hides that leaves before the next one showing (it's easy to forget a choice is on and
+// wonder where the earlier bus went). Times are as scheduled: hidden buses aren't followed live.
+export function soonerHidden(trips: Trip[] | null | undefined, only: string[] | undefined, before: string, now: number): Trip | null {
+  if (!trips || !only?.length) return null;
+  const end = new Date(before).getTime();
+  return trips.find((t) => !only.includes(t.route) && new Date(t.departure).getTime() > now && new Date(t.departure).getTime() < end) ?? null;
+}

@@ -1,4 +1,4 @@
-import { chosenTrips, offerLabel, routeChoices, routeLabel, toggleRoute } from './routeFilter';
+import { chosenTrips, offerLabel, routeChoices, routeLabel, soonerHidden, toggleRoute } from './routeFilter';
 import type { Stop, Trip } from './types';
 
 const trip = (route: string, departure: string) => ({ id: `${route}-${departure}`, route, departure }) as Trip;
@@ -76,5 +76,36 @@ describe('offerLabel', () => {
     expect(offerLabel({ from: stop({ carrier: 'NJT' }), to: stop({ carrier: 'NJT', routes: ['166'] }) })).toBe('+ 166 NJT');
     expect(offerLabel({ from: stop({ carrier: 'NJT' }), to: stop({ carrier: 'NJT' }) })).toBe('+ NJ Transit');
     expect(offerLabel({ from: stop({}), to: stop({}) })).toBe('+ Coach USA');
+  });
+});
+
+describe('soonerHidden', () => {
+  const at = (hhmm: string) => `2026-11-21T${hhmm}:00Z`;
+  const day = [trip('166X', at('19:00')), trip('166', at('19:10')), trip('166T', at('19:20')), trip('166', at('19:30'))];
+  const now = Date.parse(at('18:50'));
+
+  it('finds the first hidden bus leaving before the next one showing', () => {
+    expect(soonerHidden(day, ['166'], at('19:10'), now)?.route).toBe('166X');
+    expect(soonerHidden(day, ['166T'], at('19:20'), now)?.route).toBe('166X');
+  });
+
+  it('finds nothing when the next bus showing is the first to leave', () => {
+    expect(soonerHidden(day, ['166X'], at('19:00'), now)).toBeNull();
+  });
+
+  it('skips hidden buses that already left', () => {
+    expect(soonerHidden(day, ['166T'], at('19:20'), Date.parse(at('19:05')))?.route).toBe('166');
+    expect(soonerHidden(day, ['166T'], at('19:20'), Date.parse(at('19:15')))).toBeNull();
+  });
+
+  it('doesn’t count a bus leaving at the same minute as sooner', () => {
+    expect(soonerHidden([trip('166X', at('19:10')), trip('166', at('19:10'))], ['166'], at('19:10'), now)).toBeNull();
+  });
+
+  it('finds nothing without a choice or without trips', () => {
+    expect(soonerHidden(day, undefined, at('19:30'), now)).toBeNull();
+    expect(soonerHidden(day, [], at('19:30'), now)).toBeNull();
+    expect(soonerHidden(null, ['166'], at('19:30'), now)).toBeNull();
+    expect(soonerHidden(undefined, ['166'], at('19:30'), now)).toBeNull();
   });
 });
