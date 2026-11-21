@@ -17,6 +17,10 @@ id=$(grep -o 'bus-buddy--[a-z0-9]*\.expo\.app' <<<"$out" | head -1 | sed 's/^bus
 want=$(bundles "https://bus-buddy--$id.expo.app")
 echo "New build $id: $want"
 
+# Always point production at the new deployment: a redeploy that only changes server settings (an API key) has
+# the same bundles as the last one, so the check below can't tell the two apart.
+npx eas-cli@latest deploy:alias --prod --id "$id" --non-interactive
+
 for attempt in 1 2 3 4 5 6; do
   sleep 20
   have=$(bundles "$PROD" || true)
