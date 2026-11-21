@@ -20,6 +20,11 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # Nothing reaches riders unless it passes the same checks as CI.
+      - run: echo '/// <reference types="expo/types" />' > expo-env.d.ts
+      - run: npx tsc --noEmit
+      - run: npx expo lint
+      - run: npm test
       - run: npm run build:njt
         env:
           NJT_USERNAME: ${{ secrets.NJT_USERNAME }}
