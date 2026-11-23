@@ -8,7 +8,7 @@ import type { TrafficIncident } from '@/types';
 export const CORRIDOR = '-74.06,40.74,-73.90,41.03';
 
 const FIELDS =
-  '{incidents{geometry{type,coordinates},properties{id,iconCategory,magnitudeOfDelay,events{description},from,to,delay,roadNumbers,endTime}}}';
+  '{incidents{geometry{type,coordinates},properties{id,iconCategory,magnitudeOfDelay,events{description},from,to,length,delay,roadNumbers,endTime}}}';
 
 // TomTom's incident kinds worth a rider's attention, by its iconCategory.
 const KINDS: Record<number, TrafficIncident['kind']> = {
@@ -23,6 +23,9 @@ const KINDS: Record<number, TrafficIncident['kind']> = {
 };
 // Always worth showing, however small TomTom rates the delay.
 const ALWAYS = new Set<TrafficIncident['kind']>(['accident', 'road-closed', 'flooding']);
+// Closures and works shorter than this (meters) are mostly ramps and side-street blocks a bus never uses.
+export const MIN_CLOSURE_M = 200;
+const CLOSURES = new Set<TrafficIncident['kind']>(['road-closed', 'lane-closed', 'road-works']);
 
 type Raw = {
   geometry?: { type?: string; coordinates?: unknown };
@@ -33,6 +36,7 @@ type Raw = {
     events?: { description?: string }[];
     from?: string;
     to?: string;
+    length?: number | null;
     delay?: number | null;
     roadNumbers?: string[];
     endTime?: string | null;
@@ -51,13 +55,14 @@ function pointsOf(geometry: Raw['geometry']): [number, number][] {
 }
 
 // Incidents a rider would care about: accidents, closures and flooding always; other hazards and road works only
-// when TomTom expects a moderate or major delay.
+// when TomTom expects a moderate or major delay; no closures or works too short to be on a bus's way.
 export function toIncidents(body: { incidents?: Raw[] } | null): TrafficIncident[] {
   return (body?.incidents ?? []).flatMap((raw) => {
     const p = raw.properties ?? {};
     const kind = KINDS[p.iconCategory ?? -1];
     if (!kind || !p.id) return [];
     if (!ALWAYS.has(kind) && !(p.magnitudeOfDelay === 2 || p.magnitudeOfDelay === 3)) return [];
+    if (CLOSURES.has(kind) && typeof p.length === 'number' && p.length < MIN_CLOSURE_M) return [];
     const points = pointsOf(raw.geometry);
     if (!points.length) return [];
     return [

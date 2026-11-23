@@ -4,6 +4,8 @@ import { router } from 'expo-router';
 import RouteScreen from '@/app/route/[id]';
 import { formatTime, loadRoutes, saveRoutes, useAdvisories } from '@/api';
 import { useTripStatuses } from '@/live';
+import { useTraffic } from '@/traffic';
+import { useRoadWork } from '@/roadWork';
 import { usePartner, useRouteTrips } from '@/routeTrips';
 import type { Advisory, Leg, SavedRoute, Stop, Trip, TripStatus } from '@/types';
 import { wakeBefore } from '@/wake';
@@ -22,6 +24,8 @@ jest.mock('@/routeTrips', () => ({ useRouteTrips: jest.fn(), usePartner: jest.fn
 jest.mock('@/api', () => ({ ...jest.requireActual('@/api'), useAdvisories: jest.fn() }));
 jest.mock('@/live', () => ({ ...jest.requireActual('@/live'), useTripStatuses: jest.fn() }));
 jest.mock('@/wake', () => ({ wakeBefore: jest.fn() }));
+jest.mock('@/traffic', () => ({ ...jest.requireActual('@/traffic'), useTraffic: jest.fn() }));
+jest.mock('@/roadWork', () => ({ useRoadWork: jest.fn() }));
 
 // Thursday Nov 19 2026, 10:00 AM in New York.
 const NOW = Date.parse('2026-11-19T15:00:00Z');
@@ -91,6 +95,8 @@ beforeEach(async () => {
   jest.mocked(useAdvisories).mockReturnValue([]);
   jest.mocked(useTripStatuses).mockReturnValue({});
   jest.mocked(router.canGoBack).mockReturnValue(true);
+  jest.mocked(useTraffic).mockReturnValue([]);
+  jest.mocked(useRoadWork).mockReturnValue([]);
 });
 
 afterEach(() => {
@@ -436,6 +442,32 @@ describe('Schedule screen', () => {
     expect(screen.getByText('Leaving 5 min late')).toBeOnTheScreen();
     // Countdown follows the live departure.
     expect(screen.getByText('in 35 min')).toBeOnTheScreen();
+  });
+
+  it('shows traffic on the next bus’s way and the towns’ road work, folding past two', async () => {
+    setTrips([trip(at(10, 30)), trip(at(11))]);
+    const incident = (id: string, kind: 'accident' | 'road-closed', point: [number, number]) => ({
+      id, kind, what: 'Closed', road: null, from: 'Hurley Pl', to: null, delayMin: null, until: null, points: [point],
+    });
+    // By the route's stops (the test stops share one spot), and far off in Paterson.
+    jest.mocked(useTraffic).mockReturnValue([incident('i1', 'road-closed', [40.8005, -74]), incident('i2', 'accident', [40.92, -74.17])]);
+    const gas = { town: 'Tenafly', title: 'Gas work', link: 'https://t/gas', posted: '2026-11-18T20:00:00.000Z' };
+    jest.mocked(useRoadWork).mockReturnValue([gas, { ...gas, title: 'Paving', link: 'https://t/paving' }]);
+    await open();
+    expect(jest.mocked(useTraffic)).toHaveBeenCalledWith(true);
+    expect(jest.mocked(useRoadWork).mock.calls[0][0]).toEqual([njtFrom, njtTo]);
+    expect(screen.getByText('⛔\u00A0 Road closed near Hurley Pl')).toBeOnTheScreen();
+    expect(screen.queryByText(/Accident/)).toBeNull();
+    const more = screen.getByText('2 more: road work ×2');
+    await fireEvent.press(more);
+    expect(screen.getByText('🚧\u00A0 Road work in Tenafly: Paving')).toBeOnTheScreen();
+  });
+
+  it('asks about no traffic once the day’s buses are gone', async () => {
+    setTrips([trip(at(8))]);
+    await open();
+    expect(jest.mocked(useTraffic)).toHaveBeenCalledWith(false);
+    expect(screen.queryByText(/more:/)).toBeNull();
   });
 
   it('shows the error and retries when nothing loaded', async () => {

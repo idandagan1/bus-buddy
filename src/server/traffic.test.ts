@@ -1,5 +1,5 @@
 // Reading TomTom's incident details: which incidents riders see, and how they're described.
-import { CORRIDOR, corridorIncidents, toIncidents } from './traffic';
+import { CORRIDOR, corridorIncidents, MIN_CLOSURE_M, toIncidents } from './traffic';
 
 const raw = (props: Record<string, unknown>, geometry: unknown = { type: 'Point', coordinates: [-73.962, 40.916] }) => ({
   geometry: geometry as { type?: string; coordinates?: unknown },
@@ -32,6 +32,19 @@ describe('toIncidents', () => {
       raw({ id: 'no-category', iconCategory: undefined }),
     ];
     expect(toIncidents({ incidents: list }).map((i) => i.id)).toEqual(['acc', 'closed', 'flood', 'works-major', 'lane-moderate']);
+  });
+
+  it(`drops closures and works shorter than ${MIN_CLOSURE_M} m (ramps, side-street blocks), but not accidents`, () => {
+    const list = [
+      raw({ id: 'ramp', iconCategory: 8, length: 120 }),
+      raw({ id: 'road', iconCategory: 8, length: 900 }),
+      raw({ id: 'unknown-length', iconCategory: 8 }),
+      raw({ id: 'short-works', iconCategory: 9, magnitudeOfDelay: 3, length: 50 }),
+      raw({ id: 'short-lane', iconCategory: 7, magnitudeOfDelay: 2, length: 199 }),
+      raw({ id: 'edge', iconCategory: 7, magnitudeOfDelay: 2, length: MIN_CLOSURE_M }),
+      raw({ id: 'crash', iconCategory: 1, length: 10 }),
+    ];
+    expect(toIncidents({ incidents: list }).map((i) => i.id)).toEqual(['road', 'unknown-length', 'edge', 'crash']);
   });
 
   it('thins a long road down to about twenty points, keeping its end', () => {

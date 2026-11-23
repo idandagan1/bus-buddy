@@ -479,18 +479,37 @@ describe('Home: town road work', () => {
   const paving = { ...gas, title: 'Paving on Engle St', link: 'https://www.tenaflynj.gov/paving' };
   const sewer = { ...gas, title: 'Sewer work', link: 'https://www.tenaflynj.gov/sewer' };
 
-  it('shows the newest two notices on the card, each opening the notice', async () => {
-    jest.mocked(useRoadWork).mockReturnValue([gas, paving, sewer]);
+  it('shows two notices, the first in full, each opening the notice', async () => {
+    jest.mocked(useRoadWork).mockReturnValue([gas, paving]);
     const open = jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
     await save([{ id: 'r1', from: pabt, to: tenafly }]);
     await show();
     expect(jest.mocked(useRoadWork).mock.calls[0][0]).toEqual([pabt, tenafly]);
     expect(screen.getByText('🚧\u00A0 Road work in Tenafly: JFC TENAFLY GAS WORK SCHEDULE')).toBeOnTheScreen();
     expect(screen.getByText('🚧\u00A0 Road work in Tenafly: Paving on Engle St')).toBeOnTheScreen();
+    expect(screen.getAllByText('Posted Thu, Nov 19 · Read the notice ›')).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: /more/ })).toBeNull();
+    await fireEvent.press(screen.getAllByRole('link')[1]);
+    expect(open).toHaveBeenCalledWith('https://www.tenaflynj.gov/paving');
+  });
+
+  it('folds notes past two into one line that opens them', async () => {
+    jest.mocked(useRoadWork).mockReturnValue([gas, paving, sewer]);
+    // Only the route's one carrier has trips, so the alert comes once.
+    jest.mocked(useAdvisories).mockImplementation((trips) => (trips?.length ? [{ id: 'pa', heading: 'Port Authority Construction Advisory', severity: 'high', paragraphs: [], updated: null }] : []));
+    await save([{ id: 'r1', from: pabt, to: tenafly }]);
+    await show();
+    // The service alert ranks first and shows in full; the three road works fold.
+    expect(screen.getByText('⚠️\u00A0 Port Authority Construction Advisory')).toBeOnTheScreen();
+    const more = screen.getByText('3 more: road work ×3');
     expect(screen.queryByText(/Sewer work/)).toBeNull();
-    expect(screen.getAllByText('Posted Thu, Nov 19 · Read the notice ›')).toHaveLength(2);
-    await fireEvent.press(screen.getAllByRole('link')[0]);
-    expect(open).toHaveBeenCalledWith('https://www.tenaflynj.gov/gas');
+    await fireEvent.press(more);
+    expect(screen.getByText('Hide 3 more')).toBeOnTheScreen();
+    expect(screen.getByText('🚧\u00A0 Road work in Tenafly: Sewer work')).toBeOnTheScreen();
+    // Folded notes are one line each, without their explanation.
+    expect(screen.queryByText('Posted Thu, Nov 19 · Read the notice ›')).toBeNull();
+    await fireEvent.press(screen.getByText('Hide 3 more'));
+    expect(screen.getByText('3 more: road work ×3')).toBeOnTheScreen();
   });
 
   it('shows nothing without notices', async () => {

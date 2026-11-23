@@ -21,6 +21,10 @@ import { usePartner, useRouteTrips } from '@/routeTrips';
 import { Collapsible, colors, EASE_OUT, gradient, Hero, Page, PressableScale, PulseDot, shadow, Skeleton, ToggleIcon } from '@/ui';
 import { trackRouteChange } from '@/analytics';
 import { routeStops } from '@/detours';
+import { RouteNotes } from '@/components/RouteNotes';
+import { routeNotes } from '@/notes';
+import { useRoadWork } from '@/roadWork';
+import { incidentsOnTrip, useTraffic } from '@/traffic';
 
 export default function RouteScreen() {
   const { id, reversed } = useLocalSearchParams<{ id: string; reversed?: string }>();
@@ -82,6 +86,10 @@ function Schedule(props: { route: SavedRoute; reversed: boolean; onSwap: () => v
   const dayTrips = trips?.filter((t) => dayKey(t.departure) === selectedDay) ?? [];
   // The header map shows the next bus; each ride's own map link covers a specific one (e.g. the bus you're on).
   const mapTrip = next ?? trips?.at(-1);
+  // Beside the carrier's own alerts: accidents and closures on the next bus's way, and the towns' road work.
+  const traffic = useTraffic(!!next);
+  const roadWork = useRoadWork(routeStops(route));
+  const notes = routeNotes({ detours: [], alerts: [], incidents: next ? incidentsOnTrip(traffic, next, from, to) : [], roadWork });
   // Busy routes run 100+ trips a day: start just before the next departure (the latest buses on the road, for a
   // mid-ride alarm, are one tap away under "earlier trips"), and load more on scroll.
   const [shown, setShown] = useState(PAGE_SIZE);
@@ -186,6 +194,7 @@ function Schedule(props: { route: SavedRoute; reversed: boolean; onSwap: () => v
       }
     >
       <Advisories advisories={hasLive ? advisories.filter((a) => !a.id.startsWith('bus-tracking')) : advisories} stops={routeStops(route)} />
+      <RouteNotes notes={notes} gap={14} />
 
       {trips ? (
         <DayTabs

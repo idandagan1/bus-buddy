@@ -1,7 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
-import { Alert, Linking, Platform, StyleSheet, Text, View } from 'react-native';
+import { Alert, Platform, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   FadeIn,
   FadeOut,
@@ -11,7 +11,7 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-import { formatCountdown, formatDay, formatTime, loadRoutes, saveRoutes, useAdvisories, useNow } from '@/api';
+import { formatCountdown, formatTime, loadRoutes, saveRoutes, useAdvisories, useNow } from '@/api';
 import { useDirection } from '@/direction';
 import { severityStyle } from '@/components/Advisories';
 import { ErrorState, StaleNote } from '@/components/ErrorState';
@@ -31,9 +31,11 @@ import { usePartner, useRouteTrips } from '@/routeTrips';
 import type { SavedRoute, Stop, Trip } from '@/types';
 import { Collapsible, colors, EASE_OUT, gradient, Hero, Page, PressableScale, PulseDot, shadow, Skeleton } from '@/ui';
 import { routeProps, track, trackRouteChange } from '@/analytics';
-import { detourLine, detoursNear, isDetour, routeStops } from '@/detours';
+import { detoursNear, isDetour, routeStops } from '@/detours';
 import { useRoadWork } from '@/roadWork';
-import { incidentLine, incidentsOnTrip, isUrgent, useTraffic } from '@/traffic';
+import { routeNotes } from '@/notes';
+import { RouteNotes } from '@/components/RouteNotes';
+import { incidentsOnTrip, useTraffic } from '@/traffic';
 import { alertsFor, formatHour, formatUntil, rainDuring, SKY, useWeather } from '@/weather';
 
 // Home stays calm: one short fade, no slides or staggers.
@@ -306,8 +308,8 @@ function RouteCard({ route, onChange, onRemove }: { route: SavedRoute; onChange:
   // Detours first, saying when one is by the rider's stop; then any other serious alert.
   const detours = detoursNear(advisories, routeStops(route));
   const alerts = advisories.filter((a) => a.severity === 'high' && !isDetour(a));
-  // The town's own road work notices (gas work, paving, closures), newest two.
-  const roadWork = useRoadWork(routeStops(route)).slice(0, 2);
+  // The town's own road work notices (gas work, paving, closures).
+  const roadWork = useRoadWork(routeStops(route));
   const now = useNow();
   const statuses = useTripStatuses(trips, now);
   const liveOf = (t: Trip) => summarize(statuses[statusKey(t)], now);
@@ -315,8 +317,9 @@ function RouteCard({ route, onChange, onRemove }: { route: SavedRoute; onChange:
   const upcoming = trips?.filter((t) => new Date(liveOf(t)?.departure ?? t.departure).getTime() > now - 60000).slice(0, 3) ?? [];
   // Accidents, closures and big road works on the next bus's way.
   const traffic = useTraffic(!!upcoming[0]);
-  const incidents = upcoming[0] ? incidentsOnTrip(traffic, upcoming[0], from, to).slice(0, 2) : [];
+  const incidents = upcoming[0] ? incidentsOnTrip(traffic, upcoming[0], from, to) : [];
   const sooner = upcoming[0] ? soonerHidden(all, route.only, liveOf(upcoming[0])?.departure ?? upcoming[0].departure, now) : null;
+  const notes = routeNotes({ detours, incidents, alerts, roadWork });
 
   const spin = useSharedValue(0);
   const spinStyle = useAnimatedStyle(() => ({ transform: [{ rotate: `${spin.value}deg` }] }));
@@ -348,37 +351,7 @@ function RouteCard({ route, onChange, onRemove }: { route: SavedRoute; onChange:
         <RouteChips trips={all} only={route.only} onChange={(only) => onChange({ ...route, only })} offer={offer} />
       </Collapsible>
 
-      {detours.map((d) => (
-        <Animated.View key={d.advisory.id} entering={CALM} style={[styles.alert, { backgroundColor: severityStyle.high.soft }]}>
-          <Text style={[styles.alertText, { color: severityStyle.high.color }]} numberOfLines={2}>{`↪️\u00A0 ${detourLine(d)}`}</Text>
-          {d.near && <Text style={styles.alertDetail} numberOfLines={3}>{[d.advisory.heading, ...d.advisory.paragraphs].join(' ')}</Text>}
-        </Animated.View>
-      ))}
-      {incidents.map((inc) => {
-        const tone = isUrgent(inc) ? severityStyle.high : severityStyle.low;
-        return (
-          <Animated.View key={inc.id} entering={CALM} style={[styles.alert, { backgroundColor: tone.soft }]}>
-            <Text style={[styles.alertText, { color: tone.color }]} numberOfLines={2}>{incidentLine(inc)}</Text>
-            {!!inc.what && <Text style={styles.alertDetail} numberOfLines={1}>{`${inc.what} · on your bus's way`}</Text>}
-          </Animated.View>
-        );
-      })}
-      {roadWork.map((n) => (
-        <PressableScale
-          key={n.link}
-          onPress={() => Linking.openURL(n.link)}
-          accessibilityRole="link"
-          style={[styles.alert, { backgroundColor: severityStyle.low.soft }]}
-        >
-          <Text style={[styles.alertText, { color: severityStyle.low.color }]} numberOfLines={2}>{`🚧\u00A0 Road work in ${n.town}: ${n.title}`}</Text>
-          <Text style={styles.alertDetail}>{`Posted ${formatDay(n.posted)} · Read the notice ›`}</Text>
-        </PressableScale>
-      ))}
-      {alerts.map((a) => (
-        <Animated.View key={a.id} entering={CALM} style={[styles.alert, { backgroundColor: severityStyle.high.soft }]}>
-          <Text style={[styles.alertText, { color: severityStyle.high.color }]} numberOfLines={1}>{`⚠️\u00A0 ${a.heading}`}</Text>
-        </Animated.View>
-      ))}
+      <RouteNotes notes={notes} />
 
       {error && !trips && <ErrorState compact offline={offline} message={error} onRetry={reload} />}
       {trips && (cachedAt || offline) && <StaleNote cachedAt={cachedAt} offline={offline} />}

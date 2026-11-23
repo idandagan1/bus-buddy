@@ -105,6 +105,9 @@ const LABELS: Record<TrafficIncident['kind'], { icon: string; label: string; urg
 
 export const isUrgent = (i: TrafficIncident) => LABELS[i.kind].urgent;
 
+// "road closed", as a folded list of a card's notes counts it.
+export const incidentLabel = (i: TrafficIncident) => LABELS[i.kind].label.toLowerCase();
+
 // "🚨 Accident on US-9W near Clinton Ave · +6 min"
 export function incidentLine(i: TrafficIncident) {
   const { icon, label } = LABELS[i.kind];
