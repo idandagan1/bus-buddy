@@ -479,7 +479,7 @@ describe('Home: town road work', () => {
   const paving = { ...gas, title: 'Paving on Engle St', link: 'https://www.tenaflynj.gov/paving' };
   const sewer = { ...gas, title: 'Sewer work', link: 'https://www.tenaflynj.gov/sewer' };
 
-  it('shows two notices, the first in full, each opening the notice', async () => {
+  it('shows two notices, each opening on tap with a button to the notice', async () => {
     jest.mocked(useRoadWork).mockReturnValue([gas, paving]);
     const open = jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
     await save([{ id: 'r1', from: pabt, to: tenafly }]);
@@ -487,10 +487,16 @@ describe('Home: town road work', () => {
     expect(jest.mocked(useRoadWork).mock.calls[0][0]).toEqual([pabt, tenafly]);
     expect(screen.getByText('🚧\u00A0 Road work in Tenafly: JFC TENAFLY GAS WORK SCHEDULE')).toBeOnTheScreen();
     expect(screen.getByText('🚧\u00A0 Road work in Tenafly: Paving on Engle St')).toBeOnTheScreen();
-    expect(screen.getAllByText('Posted Thu, Nov 19 · Read the notice ›')).toHaveLength(1);
-    expect(screen.queryByRole('button', { name: /more/ })).toBeNull();
-    await fireEvent.press(screen.getAllByRole('link')[1]);
+    // Closed, a notice is just its line.
+    expect(screen.queryByText('Posted Thu, Nov 19')).toBeNull();
+    expect(screen.queryByText(/^\d+ more:/)).toBeNull();
+    await fireEvent.press(screen.getByText('🚧\u00A0 Road work in Tenafly: Paving on Engle St'));
+    expect(screen.getByText('Posted Thu, Nov 19')).toBeOnTheScreen();
+    expect(open).not.toHaveBeenCalled();
+    await fireEvent.press(screen.getByText('Read more ›'));
     expect(open).toHaveBeenCalledWith('https://www.tenaflynj.gov/paving');
+    await fireEvent.press(screen.getByText('🚧\u00A0 Road work in Tenafly: Paving on Engle St'));
+    expect(screen.queryByText('Posted Thu, Nov 19')).toBeNull();
   });
 
   it('folds notes past two into one line that opens them', async () => {
@@ -507,7 +513,7 @@ describe('Home: town road work', () => {
     expect(screen.getByText('Hide 3 more')).toBeOnTheScreen();
     expect(screen.getByText('🚧\u00A0 Road work in Tenafly: Sewer work')).toBeOnTheScreen();
     // Folded notes are one line each, without their explanation.
-    expect(screen.queryByText('Posted Thu, Nov 19 · Read the notice ›')).toBeNull();
+    expect(screen.queryByText('Posted Thu, Nov 19')).toBeNull();
     await fireEvent.press(screen.getByText('Hide 3 more'));
     expect(screen.getByText('3 more: road work ×3')).toBeOnTheScreen();
   });
@@ -565,6 +571,18 @@ describe('Home: weather', () => {
     await save([{ id: 'r1', from: pabt, to: tenafly }]);
     await show();
     expect(screen.getByText('⚠️\u00A0 Wind Advisory')).toBeOnTheScreen();
+  });
+
+  it('folds weather alerts past two: the most serious in full, the rest in one line that opens them', async () => {
+    const alert = (id: string, event: string, severity: 'Moderate' | 'Severe') => ({ id, event, severity, what: `${event} details.`, until: null });
+    const alerts = [alert('w1', 'Wind Advisory', 'Moderate'), alert('w2', 'Flood Warning', 'Severe'), alert('w3', 'Freeze Watch', 'Moderate')];
+    jest.mocked(useWeather).mockReturnValue({ source: 'nws', today: null, hours: [], alerts });
+    await save([{ id: 'r1', from: pabt, to: tenafly }]);
+    await show();
+    expect(screen.getByText('⚠️\u00A0 Flood Warning')).toBeOnTheScreen();
+    expect(screen.getByText('Flood Warning details.')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByText('2 more: wind advisory · freeze watch'));
+    expect(screen.getByText('Hide 2 more')).toBeOnTheScreen();
   });
 
   it('shows nothing while the weather is unknown, or with no sky for today', async () => {

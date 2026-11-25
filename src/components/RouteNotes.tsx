@@ -44,20 +44,30 @@ export function RouteNotes({ notes, gap = 12 }: { notes: Note[]; gap?: number })
   );
 }
 
-// One warning: its line, and in full its explanation too. A note with a link opens it.
+// One warning: its line, and in full its explanation too. A note with a link opens on tap instead, with a button
+// to the full notice.
 function NoteBox({ note, full }: { note: Note; full: boolean }) {
+  const [open, setOpen] = useState(false);
   const tone = note.urgent ? severityStyle.high : severityStyle.low;
+  const link = note.link;
+  const shown = link ? open : full;
   const body = (
     <>
-      <Text style={[styles.alertText, { color: tone.color }]} numberOfLines={full ? 2 : 1}>{note.text}</Text>
-      {full && !!note.detail && <Text style={styles.alertDetail} numberOfLines={3}>{note.detail}</Text>}
+      <Text style={[styles.alertText, { color: tone.color }]} numberOfLines={shown ? 3 : full ? 2 : 1}>{note.text}</Text>
+      {shown && !!note.detail && <Text style={styles.alertDetail} numberOfLines={3}>{note.detail}</Text>}
+      {link && (
+        <Collapsible expanded={open}>
+          <PressableScale onPress={() => Linking.openURL(link)} accessibilityRole="link" hitSlop={4} style={[styles.readMore, { borderColor: tone.color }]}>
+            <Text style={[styles.readMoreText, { color: tone.color }]}>Read more ›</Text>
+          </PressableScale>
+        </Collapsible>
+      )}
     </>
   );
   const style = [styles.alert, { backgroundColor: tone.soft }];
-  if (note.link) {
-    const link = note.link;
+  if (link) {
     return (
-      <PressableScale onPress={() => Linking.openURL(link)} accessibilityRole="link" style={style}>
+      <PressableScale onPress={() => setOpen((v) => !v)} accessibilityRole="button" accessibilityState={{ expanded: open }} style={style}>
         {body}
       </PressableScale>
     );
@@ -75,5 +85,7 @@ const styles = StyleSheet.create({
   alertDetail: { fontSize: 12, color: colors.text, marginTop: 4, lineHeight: 17 },
   moreNotes: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 12, backgroundColor: colors.bg },
   moreNotesText: { flex: 1, fontSize: 13, fontWeight: '700', color: colors.text },
+  readMore: { alignSelf: 'flex-start', marginTop: 8, borderWidth: 1, borderRadius: 8, paddingVertical: 4, paddingHorizontal: 10 },
+  readMoreText: { fontSize: 12, fontWeight: '700' },
   moreNotesChevron: { fontSize: 12, color: colors.muted },
 });

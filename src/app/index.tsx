@@ -13,7 +13,6 @@ import Animated, {
 } from 'react-native-reanimated';
 import { formatCountdown, formatTime, loadRoutes, saveRoutes, useAdvisories, useNow } from '@/api';
 import { useDirection } from '@/direction';
-import { severityStyle } from '@/components/Advisories';
 import { ErrorState, StaleNote } from '@/components/ErrorState';
 import { GateBadge } from '@/components/GateBadge';
 import { InstallCard } from '@/components/InstallCard';
@@ -33,10 +32,10 @@ import { Collapsible, colors, EASE_OUT, gradient, Hero, Page, PressableScale, Pu
 import { routeProps, track, trackRouteChange } from '@/analytics';
 import { detoursNear, isDetour, routeStops } from '@/detours';
 import { useRoadWork } from '@/roadWork';
-import { routeNotes } from '@/notes';
+import { routeNotes, weatherNotes } from '@/notes';
 import { RouteNotes } from '@/components/RouteNotes';
 import { incidentsOnTrip, useTraffic } from '@/traffic';
-import { alertsFor, formatHour, formatUntil, rainDuring, SKY, useWeather } from '@/weather';
+import { alertsFor, formatHour, rainDuring, SKY, useWeather } from '@/weather';
 
 // Home stays calm: one short fade, no slides or staggers.
 const CALM = FadeIn.duration(250).easing(EASE_OUT);
@@ -198,14 +197,7 @@ function WeatherAlerts({ route }: { route: SavedRoute }) {
   if (!alerts.length) return null;
   return (
     <View style={{ gap: 8 }}>
-      {alerts.map((a) => (
-        <Animated.View key={a.id} entering={CALM} style={[styles.alert, styles.weatherAlert, { backgroundColor: severityStyle.high.soft }]}>
-          <Text style={[styles.alertText, { color: severityStyle.high.color }]} numberOfLines={2}>
-            {`⚠️\u00A0 ${a.event}${formatUntil(a.until, now) ? ` ${formatUntil(a.until, now)}` : ''}`}
-          </Text>
-          {!!a.what && <Text style={styles.alertDetail} numberOfLines={3}>{a.what}</Text>}
-        </Animated.View>
-      ))}
+      <RouteNotes notes={weatherNotes(alerts, now)} gap={8} />
     </View>
   );
 }
@@ -497,10 +489,6 @@ const styles = StyleSheet.create({
   trip: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 8, rowGap: 4, paddingHorizontal: 12, paddingVertical: 4 },
   tripTime: { fontSize: 16, fontWeight: '600', color: colors.text, minWidth: 74 },
   tripCountdown: { marginLeft: 'auto', color: colors.muted, flexShrink: 0 },
-  alert: { borderRadius: 10, paddingVertical: 8, paddingHorizontal: 12 },
-  alertText: { fontSize: 13, fontWeight: '700' },
-  weatherAlert: { borderLeftWidth: 4, borderLeftColor: severityStyle.high.color },
-  alertDetail: { fontSize: 12, color: colors.text, marginTop: 4, lineHeight: 17 },
   muted: { color: colors.muted, fontSize: 14 },
   error: { color: colors.danger },
   actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8, borderTopWidth: 1, borderColor: colors.border, paddingTop: 12 },

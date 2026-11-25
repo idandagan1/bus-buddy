@@ -1,5 +1,5 @@
 // Ranking a route card's warnings, and folding all but the first past two.
-import { foldedSummary, routeNotes, SHOWN, splitNotes } from './notes';
+import { foldedSummary, routeNotes, SHOWN, splitNotes, weatherNotes } from './notes';
 import type { Detour } from './detours';
 import type { Advisory, TrafficIncident } from './types';
 
@@ -30,7 +30,7 @@ describe('routeNotes', () => {
     expect(c).toMatchObject({ urgent: true, text: '⛔  Road closed near Hurley Pl', detail: "Closed · on your bus's way", label: 'road closed' });
     expect(a).toMatchObject({ urgent: true, text: '⚠️  PA advisory', detail: 'Expect delays.', label: 'service alert' });
     expect(w).toMatchObject({ urgent: false, detail: null, label: 'road works' });
-    expect(g).toMatchObject({ urgent: false, detail: 'Posted Thu, Nov 19 · Read the notice ›', label: 'road work', link: 'https://t/gas' });
+    expect(g).toMatchObject({ urgent: false, detail: 'Posted Thu, Nov 19', label: 'road work', link: 'https://t/gas' });
   });
 
   it('gives a far detour and a bare alert no explanation', () => {
@@ -56,5 +56,21 @@ describe('folding', () => {
   it('counts the folded notes by kind, in rank order', () => {
     expect(foldedSummary(notes.slice(1))).toBe('road closed · accident · road work');
     expect(foldedSummary(notes)).toBe('road closed ×2 · accident · road work');
+  });
+});
+
+describe('weatherNotes', () => {
+  it('keeps the given order and names each warning by its event', () => {
+    const notes = weatherNotes(
+      [
+        { id: 'a', event: 'Flood Warning', severity: 'Severe', what: 'Rivers rising.', until: null },
+        { id: 'b', event: 'Wind Advisory', severity: 'Moderate', what: '', until: null },
+      ],
+      0,
+    );
+    expect(notes.map((n) => [n.text, n.detail, n.label, n.rank])).toEqual([
+      ['⚠️\u00A0 Flood Warning', 'Rivers rising.', 'flood warning', 0],
+      ['⚠️\u00A0 Wind Advisory', null, 'wind advisory', 1],
+    ]);
   });
 });

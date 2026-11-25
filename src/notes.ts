@@ -4,9 +4,11 @@ import { formatDay } from './api';
 import { detourLine, type Detour } from './detours';
 import { incidentLabel, incidentLine, isUrgent } from './traffic';
 import type { RoadWork } from './townFeeds';
-import type { Advisory, TrafficIncident } from './types';
+import { formatUntil } from './weather';
+import type { Advisory, TrafficIncident, WeatherAlert } from './types';
 
-// urgent: shown in the warning color. label: how the note is counted in the folded line. link: opened on tap.
+// urgent: shown in the warning color. label: how the note is counted in the folded line. link: the full notice,
+// offered once the note is opened.
 export type Note = { key: string; rank: number; urgent: boolean; text: string; detail: string | null; label: string; link?: string };
 
 // More notes than this, and all but the first fold away.
@@ -44,12 +46,27 @@ export function routeNotes(parts: { detours: Detour[]; incidents: TrafficInciden
       rank: 6,
       urgent: false,
       text: `🚧  Road work in ${n.town}: ${n.title}`,
-      detail: `Posted ${formatDay(n.posted)} · Read the notice ›`,
+      detail: `Posted ${formatDay(n.posted)}`,
       label: 'road work',
       link: n.link,
     })),
   ];
   return notes.sort((a, b) => a.rank - b.rank);
+}
+
+// Weather warnings, most serious first (alertsFor's order), folded like a card's warnings: "2 more: wind advisory".
+export function weatherNotes(alerts: WeatherAlert[], now: number): Note[] {
+  return alerts.map((a, i) => {
+    const until = formatUntil(a.until, now);
+    return {
+      key: `weather:${a.id}`,
+      rank: i,
+      urgent: true,
+      text: `⚠️\u00A0 ${a.event}${until ? ` ${until}` : ''}`,
+      detail: a.what || null,
+      label: a.event.toLowerCase(),
+    };
+  });
 }
 
 // "road closed ×2 · road work · service alert": each kind once, in the order they rank.
